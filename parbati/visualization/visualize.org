@@ -1,0 +1,1268 @@
+#+title: Visualize a Mountain scape
+
+
+1. First, we'll build a simple window system with GLFW that can switch between rendering backends.
+
+2. We'll implement a basic terrain renderer using heightmap data (either procedural or from DEM files).
+
+3. We'll add controls via ImGui that let us manipulate parameters like lighting, colors, and viewpoint.
+
+4. Later, we can expand to more sophisticated geological visualization features.
+
+* Project Structure with Abstraction in Mind
+
+We can create an abstracted rendering system with these components:
+
+#+begin_src
+MountainViz/
+├── src/
+│   ├── core/           # Core application code
+│   ├── renderer/       # Abstract rendering interface
+│   │   ├── Renderer.h  # Base abstract class
+│   │   ├── OpenGLRenderer.cpp
+│   │   ├── MetalRenderer.cpp (future)
+│   ├── terrain/        # Terrain generation and representation
+│   ├── visualization/  # Visualization techniques
+│   ├── io/             # Data loading (for DEMs, etc.)
+│   └── main.cpp
+├── include/            # External libraries
+└── data/               # Elevation data, textures, etc.
+#+end_src
+
+
+* Code
+** Include
+#+name: glm-wrapper
+#+begin_src cpp :main no :tangle ./MountainViz/include/glm_wrapper.h
+#pragma once
+
+// Standard library includes first
+#include <vector>
+#include <random>
+#include <cmath>
+
+// Then GLM includes
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtc/type_ptr.hpp"
+#+end_src
+** Configuration
+#+name: configure-app-h
+#+begin_src cpp :main no :tangle ./MountainViz/include/Config.h
+#pragma once
+
+#include <string>
+#include "glm/glm.hpp"
+#include "yaml-cpp/yaml.h"
+
+class Config {
+public:
+    // Window settings
+    struct {
+        int width = 1200;
+        int height = 800;
+        std::string title = "Himalayan Mountain Landscapes";
+    } window;
+
+    // Camera settings
+    struct {
+        glm::vec3 position = glm::vec3(0.0f, 100.0f, 200.0f);
+        glm::vec3 front = glm::vec3(0.0f, 0.0f, -1.0f);
+        glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+        float yaw = -90.0f;
+        float pitch = 0.0f;
+        float movementSpeed = 50.0f;
+        float sensitivity = 0.1f;
+    } camera;
+
+    // Terrain settings
+    struct {
+        float roughness = 0.6f;
+        int size = 256;
+        float height = 50.0f;
+        bool wireframe = false;
+    } terrain;
+
+    // Mouse state (not saved to config file)
+    struct {
+        float lastX = 0;
+        float lastY = 0;
+        bool firstMouse = true;
+    } mouse;
+
+    // Constructor with default path
+    Config(const std::string& configPath = "config.yaml");
+
+    // Load config from file
+    bool loadFromFile(const std::string& path);
+
+    // Save config to file
+    bool saveToFile(const std::string& path);
+
+    // Initialize mouse position based on window size
+    void initMousePosition();
+};
+#+end_src
+
+#+name: configure-app-cpp
+#+begin_src cpp :main no :tangle ./MountainViz/src/Config.cpp
+#include "Config.h"
+#include <iostream>
+#include <fstream>
+
+Config::Config(const std::string& configPath) {
+    // Try to load the config file
+    if (!loadFromFile(configPath)) {
+        std::cout << "Using default configuration" << std::endl;
+    }
+
+    // Initialize mouse position based on window size
+    initMousePosition();
+}
+
+void Config::initMousePosition() {
+    mouse.lastX = window.width / 2.0f;
+    mouse.lastY = window.height / 2.0f;
+    mouse.firstMouse = true;
+}
+
+bool Config::loadFromFile(const std::string& path) {
+    try {
+        // Check if file exists
+        std::ifstream file(path);
+        if (!file.good()) {
+            std::cerr << "Config file not found: " << path << std::endl;
+            return false;
+        }
+
+        YAML::Node config = YAML::LoadFile(path);
+
+        // Load window settings
+        if (config["window"]) {
+            window.width = config["window"]["width"].as<int>(window.width);
+            window.height = config["window"]["height"].as<int>(window.height);
+            window.title = config["window"]["title"].as<std::string>(window.title);
+        }
+
+        // Load camera settings
+        if (config["camera"]) {
+            if (config["camera"]["position"]) {
+                auto pos = config["camera"]["position"];
+                camera.position.x = pos[0].as<float>();
+                camera.position.y = pos[1].as<float>();
+                camera.position.z = pos[2].as<float>();
+            }
+
+            if (config["camera"]["front"]) {
+                auto front = config["camera"]["front"];
+                camera.front.x = front[0].as<float>();
+                camera.front.y = front[1].as<float>();
+                camera.front.z = front[2].as<float>();
+            }
+
+            if (config["camera"]["up"]) {
+                auto up = config["camera"]["up"];
+                camera.up.x = up[0].as<float>();
+                camera.up.y = up[1].as<float>();
+                camera.up.z = up[2].as<float>();
+            }
+
+            camera.yaw
+                = config["camera"]["yaw"].as<float>(camera.yaw);
+            camera.pitch
+                = config["camera"]["pitch"].as<float>(camera.pitch);
+            camera.movementSpeed
+                = config["camera"]["movement_speed"].as<float>(camera.movementSpeed);
+            camera.sensitivity
+                = config["camera"]["sensitivity"].as<float>(camera.sensitivity);
+        }
+
+        // Load terrain settings
+        if (config["terrain"]) {
+            terrain.roughness
+                = config["terrain"]["roughness"].as<float>(terrain.roughness);
+            terrain.size
+                = config["terrain"]["size"].as<int>(terrain.size);
+            terrain.height
+                = config["terrain"]["height"].as<float>(terrain.height);
+            terrain.wireframe
+                = config["terrain"]["wireframe"].as<bool>(terrain.wireframe);
+        }
+
+        std::cout << "Configuration loaded from: " << path << std::endl;
+        return true;
+    } catch (const YAML::Exception& e) {
+        std::cerr << "Error loading configuration: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool Config::saveToFile(const std::string& path) {
+    try {
+        YAML::Node config;
+
+        // Save window settings
+        config["window"]["width"] = window.width;
+        config["window"]["height"] = window.height;
+        config["window"]["title"] = window.title;
+
+        // Save camera settings
+        config["camera"]["position"].push_back(camera.position.x);
+        config["camera"]["position"].push_back(camera.position.y);
+        config["camera"]["position"].push_back(camera.position.z);
+
+        config["camera"]["front"].push_back(camera.front.x);
+        config["camera"]["front"].push_back(camera.front.y);
+        config["camera"]["front"].push_back(camera.front.z);
+
+        config["camera"]["up"].push_back(camera.up.x);
+        config["camera"]["up"].push_back(camera.up.y);
+        config["camera"]["up"].push_back(camera.up.z);
+
+        config["camera"]["yaw"] = camera.yaw;
+        config["camera"]["pitch"] = camera.pitch;
+        config["camera"]["movement_speed"] = camera.movementSpeed;
+        config["camera"]["sensitivity"] = camera.sensitivity;
+
+        // Save terrain settings
+        config["terrain"]["roughness"] = terrain.roughness;
+        config["terrain"]["size"] = terrain.size;
+        config["terrain"]["height"] = terrain.height;
+        config["terrain"]["wireframe"] = terrain.wireframe;
+
+        // Write to file
+        std::ofstream fout(path);
+        fout << config;
+
+        std::cout << "Configuration saved to: " << path << std::endl;
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "Error saving configuration: " << e.what() << std::endl;
+        return false;
+    }
+}
+#+end_src
+
+A default configuration,
+#+name: configure-yaml
+#+begin_src yaml :tangle ./MountainViz/configure/configure.yaml
+window:
+  width: 1200
+  height: 800
+  title: "Himalayan Mountain Visualization"
+
+camera:
+  position: [0.0, 100.0, 200.0]
+  front: [0.0, 0.0, -1.0]
+  up: [0.0, 1.0, 0.0]
+  yaw: -90.0
+  pitch: 0.0
+  movement_speed: 10.0
+  sensitivity: 0.01
+
+terrain:
+  roughness: 0.25
+  size: 128
+  height: 25.0
+  wireframe: false
+#+end_src
+
+** Main
+#+name: mtviz-main
+#+begin_src cpp :tangle ./MountainViz/src/main.cpp
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+
+#include <iostream>
+#include <vector>
+#include <cmath>
+#include <random>
+
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtc/type_ptr.hpp"
+
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+
+#include "renderer/Renderer.h"
+#include "terrain/ProceduralTerrain.h"
+#include "Config.h"
+
+// Global config object
+Config config;
+
+// Timing variables
+float deltaTime = 0.0f;
+float lastFrame = 0.0f;
+
+// Terrain regneration flag
+bool regenerate = false;
+
+// Function prototypes
+void framebuffer_size_callback(GLFWwindow* window, int width, int height);
+void processInput(GLFWwindow* window);
+void mouse_callback(GLFWwindow* window, double xpos, double ypos);
+
+int main() {
+    // Initialize GLFW
+    if (!glfwInit()) {
+        std::cerr << "Failed to initialize GLFW" << std::endl;
+        return -1;
+    }
+
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+#ifdef __APPLE__
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+#endif
+
+    // Create window using dimensions from config
+    GLFWwindow* window = glfwCreateWindow(
+        config.window.width, config.window.height,
+        config.window.title.c_str(), NULL, NULL);
+
+    if (window == NULL) {
+        std::cerr << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
+        return -1;
+    }
+    glfwMakeContextCurrent(window);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSetCursorPosCallback(window, mouse_callback);
+
+    // Capture the mouse
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+    // Load OpenGL functions with GLAD
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        std::cerr << "Failed to initialize GLAD" << std::endl;
+        return -1;
+    }
+
+    // Setup Dear ImGui
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGui::StyleColorsDark();
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 330 core");
+
+    // Create terrain and renderer
+    ProceduralTerrain terrain(config.terrain.size, config.terrain.size);
+    terrain.generateDiamondSquare(config.terrain.roughness, config.terrain.height);
+
+    OpenGLRenderer renderer;
+    renderer.initialize();
+    renderer.setTerrain(&terrain);
+
+    // Main loop
+    while (!glfwWindowShouldClose(window)) {
+        // Calculate delta time
+        float currentFrame = glfwGetTime();
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
+
+        // Input processing
+        processInput(window);
+
+        // Start ImGui frame
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        // ImGui controls
+        ImGui::Begin("Mountain Parameters");
+        ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
+
+        // Terrain parameters
+        bool terrainChanged = false;
+        terrainChanged |=
+            ImGui::SliderFloat("Roughness", &config.terrain.roughness, 0.1f, 1.0f);
+        terrainChanged |=
+            ImGui::SliderFloat("Height", &config.terrain.height, 10.0f, 200.0f);
+        terrainChanged |=
+            ImGui::SliderInt("Resolution", &config.terrain.size, 64, 512);
+        ImGui::Checkbox("Wireframe Mode", &config.terrain.wireframe);
+
+        //Camera parameters
+               if (ImGui::CollapsingHeader("Camera Settings")) {
+            ImGui::SliderFloat("Movement Speed",
+                               &config.camera.movementSpeed, 10.0f, 200.0f);
+            ImGui::SliderFloat("Look Sensitivity",
+                               &config.camera.sensitivity, 0.05f, 0.5f);
+
+            // Display current camera position
+            ImGui::Text("Position: (%.1f, %.1f, %.1f)",
+                        config.camera.position.x,
+                        config.camera.position.y,
+                        config.camera.position.z);
+        }
+
+        // Config save/load
+        if (ImGui::CollapsingHeader("Configuration")) {
+            static char configPath[256] = "config.yaml";
+            ImGui::InputText("Config file", configPath, 256);
+
+            if (ImGui::Button("Save Configuration")) {
+                config.saveToFile(configPath);
+            }
+
+            ImGui::SameLine();
+
+            if (ImGui::Button("Load Configuration")) {
+                if (config.loadFromFile(configPath)) {
+                    regenerate = true; // Regenerate terrain with new settings
+                }
+            }
+        }
+
+
+        if (ImGui::Button("Regenerate Terrain") || regenerate || terrainChanged) {
+            terrain = ProceduralTerrain(config.terrain.size, config.terrain.size);
+            terrain.generateDiamondSquare(config.terrain.roughness, config.terrain.height);
+            renderer.setTerrain(&terrain);
+            regenerate = false;
+        }
+        ImGui::End();
+
+        // Render
+        glClearColor(0.1f, 0.1f, 0.2f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // Create view and projection matrices
+        glm::mat4 projection
+            = glm::perspective(glm::radians(45.0f),
+                               (float)config.window.width / (float)config.window.height,
+                               0.1f, 1000.0f);
+        glm::mat4 view
+            = glm::lookAt(config.camera.position,
+                          config.camera.position + config.camera.front,
+                          config.camera.up);
+
+        // Set wireframe mode if toggled
+        if (config.terrain.wireframe)
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        else
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+        // Render terrain
+        renderer.render(view, projection);
+
+        // Render ImGui
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+        // Swap buffers and poll events
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+
+    // Cleanup
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+
+    glfwTerminate();
+    return 0;
+}
+
+void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+    config.window.width = width;
+    config.window.height = height;
+    glViewport(0, 0, width, height);
+}
+
+void processInput(GLFWwindow* window) {
+    float cameraSpeed = config.camera.movementSpeed * deltaTime;
+
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        config.camera.position += cameraSpeed * config.camera.front;
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        config.camera.position -= cameraSpeed * config.camera.front;
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        config.camera.position
+            -= glm::normalize(glm::cross(config.camera.front, config.camera.up))
+            ,* cameraSpeed;
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        config.camera.position
+            += glm::normalize(glm::cross(config.camera.front, config.camera.up))
+            ,* cameraSpeed;
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
+
+    // Save config with F5
+    if (glfwGetKey(window, GLFW_KEY_F5) == GLFW_PRESS)
+        config.saveToFile("config.yaml");
+}
+
+void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) {
+    float xpos = static_cast<float>(xposIn);
+    float ypos = static_cast<float>(yposIn);
+
+    if (config.mouse.firstMouse) {
+        config.mouse.lastX = xpos;
+        config.mouse.lastY = ypos;
+        config.mouse.firstMouse = false;
+    }
+
+    float xoffset = xpos - config.mouse.lastX;
+    float yoffset = config.mouse.lastY - ypos;
+    config.mouse.lastX = xpos;
+    config.mouse.lastY = ypos;
+
+    xoffset *= config.camera.sensitivity;
+    yoffset *= config.camera.sensitivity;
+
+    config.camera.yaw += xoffset;
+    config.camera.pitch += yoffset;
+
+    // Make sure pitch doesn't go out of bounds
+    if (config.camera.pitch > 89.0f)
+        config.camera.pitch = 89.0f;
+    if (config.camera.pitch < -89.0f)
+        config.camera.pitch = -89.0f;
+
+    glm::vec3 front;
+    front.x
+        = cos(glm::radians(config.camera.yaw))
+        ,* cos(glm::radians(config.camera.pitch));
+    front.y
+        = sin(glm::radians(config.camera.pitch));
+    front.z
+        = sin(glm::radians(config.camera.yaw))
+        ,* cos(glm::radians(config.camera.pitch));
+    config.camera.front = glm::normalize(front);
+}
+#+end_src
+
+** Renderer
+#+name: mtviz-rendered-h
+#+begin_src cpp :main no :tangle ./MountainViz/src/renderer/Renderer.h
+#pragma once
+
+//#include "glm/glm.hpp"
+#include "../terrain/ProceduralTerrain.h"
+
+// Abstract renderer interface
+class Renderer {
+public:
+    virtual ~Renderer() {}
+    virtual void initialize() = 0;
+    virtual void setTerrain(ProceduralTerrain* terrain) = 0;
+    virtual void render(const glm::mat4& view,
+                        const glm::mat4& projection) = 0;
+};
+
+// OpenGL implementation
+class OpenGLRenderer : public Renderer {
+private:
+    unsigned int shaderProgram;
+    unsigned int VAO, VBO, EBO;
+    ProceduralTerrain* terrain;
+
+    // Helper to compile shaders
+    unsigned int compileShader(const char* vertexShaderSource,
+                               const char* fragmentShaderSource);
+
+public:
+    OpenGLRenderer() : terrain(nullptr) {}
+    ~OpenGLRenderer();
+
+    void initialize() override;
+    void setTerrain(ProceduralTerrain* terrain) override;
+    void render(const glm::mat4& view,
+                const glm::mat4& projection) override;
+};
+#+end_src
+
+#+name: mtviz-opengl-renderer
+#+begin_src cpp :main no :tangle ./MountainViz/src/renderer/OpenGLRenderer.cpp
+#include <glad/glad.h>
+#include <iostream>
+#include "Renderer.h"
+//#include <glm/gtc/type_ptr.hpp>
+
+// Shader sources
+const char* vertexShaderSource = R"(
+    #version 330 core
+    layout (location = 0) in vec3 aPos;
+    layout (location = 1) in vec3 aNormal;
+
+    out vec3 FragPos;
+    out vec3 Normal;
+    out float Height;
+
+    uniform mat4 model;
+    uniform mat4 view;
+    uniform mat4 projection;
+
+    void main() {
+        FragPos = vec3(model * vec4(aPos, 1.0));
+        Normal = mat3(transpose(inverse(model))) * aNormal;
+        Height = aPos.y;
+        gl_Position = projection * view * model * vec4(aPos, 1.0);
+    }
+)";
+
+const char* fragmentShaderSource = R"(
+    #version 330 core
+    out vec4 FragColor;
+
+    in vec3 FragPos;
+    in vec3 Normal;
+    in float Height;
+
+    uniform vec3 lightPos;
+    uniform vec3 viewPos;
+
+    void main() {
+        // Height-based coloring
+        vec3 mountainColor;
+        if (Height < 10.0) {
+            mountainColor = mix(vec3(0.0, 0.3, 0.0), vec3(0.2, 0.5, 0.1), Height / 10.0); // Forest green
+        } else if (Height < 25.0) {
+            mountainColor = mix(vec3(0.2, 0.5, 0.1), vec3(0.5, 0.4, 0.3), (Height - 10.0) / 15.0); // Green to brown
+        } else if (Height < 40.0) {
+            mountainColor = mix(vec3(0.5, 0.4, 0.3), vec3(0.7, 0.7, 0.7), (Height - 25.0) / 15.0); // Brown to gray
+        } else {
+            mountainColor = mix(vec3(0.7, 0.7, 0.7), vec3(1.0, 1.0, 1.0), (Height - 40.0) / 20.0); // Gray to white (snow)
+        }
+
+        // Lighting calculations
+        vec3 lightColor = vec3(1.0, 1.0, 1.0);
+
+        // Ambient
+        float ambientStrength = 0.3;
+        vec3 ambient = ambientStrength * lightColor;
+
+        // Diffuse
+        vec3 norm = normalize(Normal);
+        vec3 lightDir = normalize(lightPos - FragPos);
+        float diff = max(dot(norm, lightDir), 0.0);
+        vec3 diffuse = diff * lightColor;
+
+        // Specular
+        float specularStrength = 0.5;
+        vec3 viewDir = normalize(viewPos - FragPos);
+        vec3 reflectDir = reflect(-lightDir, norm);
+        float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
+        vec3 specular = specularStrength * spec * lightColor;
+
+        vec3 result = (ambient + diffuse + specular) * mountainColor;
+        FragColor = vec4(result, 1.0);
+    }
+)";
+
+unsigned int OpenGLRenderer::compileShader(
+    const char* vertexShaderSource, const char* fragmentShaderSource) {
+    // Vertex Shader
+    unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
+    glCompileShader(vertexShader);
+
+    // Check for compilation errors
+    int success;
+    char infoLog[512];
+    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
+        std::cerr << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n"
+                  << infoLog << std::endl;
+    }
+
+    // Fragment Shader
+    unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
+    glCompileShader(fragmentShader);
+
+    // Check for compilation errors
+    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
+        std::cerr << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n"
+                  << infoLog << std::endl;
+    }
+
+    // Shader Program
+    unsigned int shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, vertexShader);
+    glAttachShader(shaderProgram, fragmentShader);
+    glLinkProgram(shaderProgram);
+
+    // Check for linking errors
+    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+    if (!success) {
+        glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
+        std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n"
+                  << infoLog << std::endl;
+    }
+
+    // Delete shaders as they're linked into our program now and no longer necessary
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+
+    return shaderProgram;
+}
+
+OpenGLRenderer::~OpenGLRenderer() {
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteBuffers(1, &VBO);
+    glDeleteBuffers(1, &EBO);
+    glDeleteProgram(shaderProgram);
+}
+
+void OpenGLRenderer::initialize() {
+    // Compile shaders
+    shaderProgram = compileShader(vertexShaderSource, fragmentShaderSource);
+
+    // Generate buffers and arrays
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glGenBuffers(1, &EBO);
+
+    // Enable depth testing
+    glEnable(GL_DEPTH_TEST);
+}
+
+void OpenGLRenderer::setTerrain(ProceduralTerrain* newTerrain) {
+    terrain = newTerrain;
+
+    // Only proceed if we have valid terrain data
+    if (!terrain) return;
+
+    // Generate mesh data from terrain
+    std::vector<float> vertices;
+    std::vector<unsigned int> indices;
+    terrain->createMesh(vertices, indices);
+
+    // Bind vertex array
+    glBindVertexArray(VAO);
+
+    // Load vertices
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float),
+                 vertices.data(), GL_STATIC_DRAW);
+
+    // Load indices
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                 indices.size() * sizeof(unsigned int),
+                 indices.data(), GL_STATIC_DRAW);
+
+    // Position attribute (3 floats)
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
+                          6 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // Normal attribute (3 floats)
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE,
+                          6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    // Unbind
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
+void OpenGLRenderer::render(
+    const glm::mat4& view, const glm::mat4& projection
+) {
+    if (!terrain) return;
+
+    // Use shader program
+    glUseProgram(shaderProgram);
+
+    // Set uniforms
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::translate(model,
+                           glm::vec3(-terrain->getWidth()/2.0f, 0.0f,
+                                     -terrain->getHeight()/2.0f));
+
+    unsigned int modelLoc = glGetUniformLocation(shaderProgram, "model");
+    unsigned int viewLoc = glGetUniformLocation(shaderProgram, "view");
+    unsigned int projectionLoc = glGetUniformLocation(shaderProgram, "projection");
+
+    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+    glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+    glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
+
+    // Set light position (above terrain)
+    unsigned int lightPosLoc = glGetUniformLocation(shaderProgram, "lightPos");
+    glm::vec3 lightPos(0.0f, 200.0f, 0.0f);
+    glUniform3fv(lightPosLoc, 1, glm::value_ptr(lightPos));
+
+    // Set view position for specular calculations
+    unsigned int viewPosLoc = glGetUniformLocation(shaderProgram, "viewPos");
+    glUniform3fv(viewPosLoc, 1, glm::value_ptr(glm::vec3(view[3])));
+
+    // Draw terrain
+    glBindVertexArray(VAO);
+    glDrawElements(GL_TRIANGLES, terrain->getIndexCount(), GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
+}
+#+end_src
+
+#+RESULTS: mtviz-opengl-renderer
+
+** Terrain
+#+name: mtviz-ProceduralTerrain-h
+#+begin_src cpp :main no :tangle ./MountainViz/src/terrain/ProceduralTerrain.h
+#pragma once
+// First include GLM with specific configurations
+#include <iostream>
+#include <chrono>
+#include "glm_wrapper.h"
+
+class ProceduralTerrain {
+private:
+    int width, height;
+    std::vector<float> heightmap;
+    std::vector<glm::vec3> normals;
+    int indexCount;
+
+    // Random number generator
+    std::mt19937 rng;
+
+    // Helper method to get height at a specific point
+    float getHeight(int x, int z) const;
+
+    // Helper method to set height at a specific point
+    void setHeight(int x, int z, float h);
+
+    // Calculate normals for lighting
+    void calculateNormals();
+
+public:
+    ProceduralTerrain(int width, int height);
+
+    // Diamond-Square algorithm for realistic mountain generation
+    void generateDiamondSquare(float roughness, float maxHeight);
+
+    // Create mesh for rendering
+    void createMesh(std::vector<float>& vertices, std::vector<unsigned int>& indices);
+
+    // Getters
+    int getWidth() const { return width; }
+    int getHeight() const { return height; }
+    int getIndexCount() const { return indexCount; }
+};
+#+end_src
+
+#+name: mtviz-ProceduralTerrain-cpp
+#+begin_src cpp :main no :tangle ./MountainViz/src/terrain/ProceduralTerrain.cpp
+#include "ProceduralTerrain.h"
+//#include <iostream>
+//#include <cmath>
+//#include <random>
+//#include <chrono>
+
+ProceduralTerrain::ProceduralTerrain(
+    int width, int height) : width(width), height(height), indexCount(0)
+{
+    // Initialize RNG with time-based seed
+    rng.seed(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+
+    // Initialize heightmap with zeros
+    heightmap.resize(width * height, 0.0f);
+
+    // Initialize normals
+    normals.resize(width * height, glm::vec3(0.0f, 1.0f, 0.0f));
+}
+
+float ProceduralTerrain::getHeight(int x, int z) const {
+    if (x < 0 || x >= width || z < 0 || z >= height) {
+        return 0.0f;
+    }
+    return heightmap[z * width + x];
+}
+
+void ProceduralTerrain::setHeight(int x, int z, float h) {
+    if (x < 0 || x >= width || z < 0 || z >= height) {
+        return;
+    }
+    heightmap[z * width + x] = h;
+}
+
+void ProceduralTerrain::calculateNormals() {
+    for (int z = 0; z < height; z++) {
+        for (int x = 0; x < width; x++) {
+            // Get heights of neighboring vertices
+            float hL = getHeight(x-1, z);
+            float hR = getHeight(x+1, z);
+            float hD = getHeight(x, z-1);
+            float hU = getHeight(x, z+1);
+
+            // Calculate normal using central difference
+            glm::vec3 normal(
+                hL - hR,
+                2.0f,  // Fixed y component for smoother normals
+                hD - hU
+            );
+
+            normals[z * width + x] = glm::normalize(normal);
+        }
+    }
+}
+
+void ProceduralTerrain::generateDiamondSquare(float roughness, float maxHeight) {
+    // Make sure width and height are 2^n + 1
+    int size = width;  // Assuming width == height for this algorithm
+
+    // Set up distribution for random values
+    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
+
+    // Set corner points
+    setHeight(0, 0, 0);
+    setHeight(0, size-1, 0);
+    setHeight(size-1, 0, 0);
+    setHeight(size-1, size-1, 0);
+
+    // Run the diamond-square algorithm
+    int step = size - 1;
+    float scale = maxHeight;
+
+    while (step > 1) {
+        int halfStep = step / 2;
+
+        // Diamond step
+        for (int z = 0; z < size-1; z += step) {
+            for (int x = 0; x < size-1; x += step) {
+                float avg = (
+                    getHeight(x, z) +
+                    getHeight(x + step, z) +
+                    getHeight(x, z + step) +
+                    getHeight(x + step, z + step)
+                ) / 4.0f;
+
+                float offset = dist(rng) * scale;
+                setHeight(x + halfStep, z + halfStep, avg + offset);
+            }
+        }
+
+        // Square step
+        for (int z = 0; z < size; z += halfStep) {
+            for (int x = (z + halfStep) % step; x < size; x += step) {
+                float avg = 0.0f;
+                int count = 0;
+
+                // Check the four adjacent cells
+                if (x >= halfStep) {
+                    avg += getHeight(x - halfStep, z);
+                    count++;
+                }
+                if (x + halfStep < size) {
+                    avg += getHeight(x + halfStep, z);
+                    count++;
+                }
+                if (z >= halfStep) {
+                    avg += getHeight(x, z - halfStep);
+                    count++;
+                }
+                if (z + halfStep < size) {
+                    avg += getHeight(x, z + halfStep);
+                    count++;
+                }
+
+                avg /= count;
+                float offset = dist(rng) * scale;
+                setHeight(x, z, avg + offset);
+            }
+        }
+
+        // Reduce the random variation as we get finer detail
+        scale *= roughness;
+        step = halfStep;
+    }
+
+    // Calculate normals for lighting
+    calculateNormals();
+}
+
+void ProceduralTerrain::createMesh(
+    std::vector<float>& vertices, std::vector<unsigned int>& indices
+) {
+    vertices.clear();
+    indices.clear();
+
+    // Generate vertices (position + normal for each point)
+    for (int z = 0; z < height; z++) {
+        for (int x = 0; x < width; x++) {
+            // Position
+            vertices.push_back(static_cast<float>(x));                 // x
+            vertices.push_back(getHeight(x, z));                       // y (height)
+            vertices.push_back(static_cast<float>(z));                 // z
+
+            // Normal
+            glm::vec3 normal = normals[z * width + x];
+            vertices.push_back(normal.x);
+            vertices.push_back(normal.y);
+            vertices.push_back(normal.z);
+        }
+    }
+
+    // Generate indices for triangles
+    for (int z = 0; z < height - 1; z++) {
+        for (int x = 0; x < width - 1; x++) {
+            unsigned int topLeft = z * width + x;
+            unsigned int topRight = topLeft + 1;
+            unsigned int bottomLeft = (z + 1) * width + x;
+            unsigned int bottomRight = bottomLeft + 1;
+
+            // First triangle (top-left, bottom-left, bottom-right)
+            indices.push_back(topLeft);
+            indices.push_back(bottomLeft);
+            indices.push_back(bottomRight);
+
+            // Second triangle (top-left, bottom-right, top-right)
+            indices.push_back(topLeft);
+            indices.push_back(bottomRight);
+            indices.push_back(topRight);
+        }
+    }
+
+    // Store index count for rendering
+    indexCount = indices.size();
+}
+#+end_src
+
+#+RESULTS: mtviz-ProceduralTerrain-cpp
+
+** CMake
+#+name: CMakeLists
+#+begin_src cmake :tangle ./MountainViz/CMakeLists.txt
+cmake_minimum_required(VERSION 3.12)
+
+# Add your existing compile definitions
+add_compile_definitions(
+    GLM_FORCE_PURE=1
+    GLM_FORCE_CTOR_INIT=1
+    GLM_FORCE_CXX17=1
+    GLM_ENABLE_EXPERIMENTAL=1
+    GLM_FORCE_INLINE=1
+    GLM_FORCE_EXPLICIT_CTOR=1
+    GLM_FORCE_SILENT_WARNINGS=1
+)
+
+project(MountainViz)
+
+set(CMAKE_CXX_STANDARD 17)
+
+# Find packages
+find_package(OpenGL REQUIRED)
+find_package(glfw3 REQUIRED)
+
+# Homebrew handling for yaml-cpp
+if(APPLE)
+    # Determine Homebrew prefix (different on Intel vs Apple Silicon)
+    if(EXISTS "/opt/homebrew/opt/yaml-cpp")
+        # Apple Silicon Mac
+        set(HOMEBREW_PREFIX "/opt/homebrew")
+    else()
+        # Intel Mac
+        set(HOMEBREW_PREFIX "/usr/local")
+    endif()
+
+    # Explicitly set yaml-cpp paths
+    set(YAML_CPP_INCLUDE_DIR "${HOMEBREW_PREFIX}/include")
+    set(YAML_CPP_LIBRARY "${HOMEBREW_PREFIX}/lib/libyaml-cpp.dylib")
+
+    # Add include directories
+    include_directories(${YAML_CPP_INCLUDE_DIR})
+
+    message(STATUS "Using Homebrew yaml-cpp at: ${HOMEBREW_PREFIX}")
+    message(STATUS "yaml-cpp include: ${YAML_CPP_INCLUDE_DIR}")
+    message(STATUS "yaml-cpp library: ${YAML_CPP_LIBRARY}")
+else()
+    # Non-macOS systems
+    find_package(yaml-cpp REQUIRED)
+    include_directories(${YAML_CPP_INCLUDE_DIR})
+endif()
+
+# Include GLM
+include_directories(${PROJECT_SOURCE_DIR}/third-party)
+
+# Include GLAD
+include_directories(include)
+set(GLAD_SOURCES include/glad/glad.c)
+
+# ImGui sources
+set(IMGUI_DIR include/imgui)
+include_directories(${IMGUI_DIR})
+set(IMGUI_SOURCES
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_demo.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+)
+
+# Define source files
+set(SOURCES
+    src/main.cpp
+    src/renderer/OpenGLRenderer.cpp
+    src/terrain/ProceduralTerrain.cpp
+    src/Config.cpp
+    ${GLAD_SOURCES}
+    ${IMGUI_SOURCES}
+)
+
+# Create executable
+add_executable(MountainViz ${SOURCES})
+
+# Link libraries - use the explicit path for yaml-cpp on macOS
+if(APPLE)
+    target_link_libraries(MountainViz
+        OpenGL::GL
+        glfw
+        ${YAML_CPP_LIBRARY}
+        "-framework Cocoa"
+        "-framework IOKit"
+        "-framework CoreVideo"
+    )
+else()
+    target_link_libraries(MountainViz
+        OpenGL::GL
+        glfw
+        yaml-cpp
+    )
+endif()
+#+end_src
+
+
+#+name: problem-with-yaml-cpp
+#+begin_src cmake :tangle no
+cmake_minimum_required(VERSION 3.12)
+
+add_compile_definitions(
+    GLM_FORCE_PURE=1
+    GLM_FORCE_CTOR_INIT=1
+    GLM_FORCE_CXX17=1
+    GLM_ENABLE_EXPERIMENTAL=1
+    GLM_FORCE_INLINE=1
+    GLM_FORCE_EXPLICIT_CTOR=1
+    GLM_FORCE_SILENT_WARNINGS=1
+)
+#add_definitions(-D_GLIBCXX_USE_CXX11_ABI=1)
+
+project(MountainViz)
+
+set(CMAKE_CXX_STANDARD 17)
+
+# Find packages
+find_package(OpenGL REQUIRED)
+find_package(glfw3 REQUIRED)
+find_package(yaml-cpp REQUIRED)
+
+# Include GLM
+include_directories(${PROJECT_SOURCE_DIR}/third-party)
+
+# Include GLAD
+include_directories(include)
+set(GLAD_SOURCES include/glad/glad.c)
+
+# ImGui sources
+set(IMGUI_DIR include/imgui)
+set(IMGUI_SOURCES
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_demo.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+)
+
+# Define source files
+set(SOURCES
+    src/main.cpp
+    src/renderer/OpenGLRenderer.cpp
+    src/terrain/ProceduralTerrain.cpp
+    src/Config.cpp
+    ${GLAD_SOURCES}
+    ${IMGUI_SOURCES}
+)
+
+# Create executable
+add_executable(MountainViz ${SOURCES})
+
+# If using Homebrew on macOS, you might need this if CMake can't find yaml-cpp
+if(APPLE AND NOT yaml-cpp_FOUND)
+    # Common Homebrew installation paths
+    set(HOMEBREW_PREFIX "/usr/local" CACHE PATH "Homebrew installation prefix")
+    if(EXISTS "/opt/homebrew/include")
+        # For Apple Silicon Macs
+        set(HOMEBREW_PREFIX "/opt/homebrew" CACHE PATH "Homebrew installation prefix")
+    endif()
+
+    include_directories(${HOMEBREW_PREFIX}/include)
+    link_directories(${HOMEBREW_PREFIX}/lib)
+    set(YAML_CPP_LIBRARIES yaml-cpp)
+endif()
+
+# Link libraries
+target_link_libraries(MountainViz
+    OpenGL::GL
+    glfw
+    ${YAML_CPP_LIBRARIES}
+)
+
+# Include directories for ImGui
+target_include_directories(MountainViz PRIVATE
+    ${IMGUI_DIR}
+    ${IMGUI_DIR}/backends
+)
+
+# Special flags for macOS
+if(APPLE)
+    # Add this line to avoid namespace conflicts
+    add_compile_definitions(_LIBCPP_DISABLE_NAMESPACE_ELISION)
+
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum OS X deployment version")
+
+    target_link_libraries(MountainViz "-framework Cocoa" "-framework IOKit" "-framework CoreVideo")
+    # Enable Metal-backed OpenGL implementation for macOS
+    target_compile_definitions(MountainViz PRIVATE GL_SILENCE_DEPRECATION)
+endif()
+#+end_src
+
+This completes our minimal implementation for procedurally generating mountains using C++. The core components include:
+
+1. *Main Application* - Sets up the windowing system, handles user input, and manages the UI
+
+2. *Renderer* - Abstracts the graphics interface, preparing us for potential backend switching later
+
+3. *Terrain Generator* - Implements the Diamond-Square algorithm for creating realistic mountain landscapes
+
+4. *ImGui Integration* - Provides an interactive UI to modify terrain parameters in real-time
+
+5. *CMake Build System* - Makes compilation straightforward across platforms, with special handling for macOS
+
+To set up the project, you'll need to:
+
+1. Make sure you have all the dependencies (GLFW, GLM) installed via Homebrew
+2. Download ImGui and GLAD:
+   - Place ImGui files in =include/imgui/=
+   - Place GLAD files in =include/glad/=
+3. Run CMake to generate the build files
+4. Compile and run the application
+
+The interface will allow you to:
+- Adjust terrain roughness and height
+- Change the resolution of the terrain
+- Toggle wireframe mode
+- Regenerate the terrain with new parameters
+
+You can navigate with WASD keys and look around by moving the mouse. This gives you a starting point that we can later extend with your actual elevation data from the Parvati Valley.
+
+<<<<<<
+
+
+What can I do if I get compilation errors?

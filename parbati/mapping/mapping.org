@@ -1,0 +1,503 @@
+#+STARTUP: overview
+#+STARTUP: logdrawer
+#+STARTUP: hideblocks
+
+#+PROPERTY: header-args: :eval never-export
+
+#+PROPERTY: header-args:jupyter :session ~/jupyter-run/active-local-py.json
+#+PROPERTY: header-args:jupyter: :exports both
+#+PROPERTY: header-args:jupyter: :cache yes
+#+PROPERTY: header-args:jupyter: :eval never-export
+
+#+PROPERTY: header-args:jupyter-python :session ~/jupyter-run/active-local-py.json
+#+PROPERTY: header-args:jupyter-python: :exports both
+#+PROPERTY: header-args:jupyter-python: :cache yes
+#+PROPERTY: header-args:jupyter-python: :eval never-export
+
+#+PROPERTY: header-args:jupyter-julia :session ~/jupyter-run/active-local-jl.json
+#+PROPERTY: header-args:jupyter-julia: :exports both
+#+PROPERTY: header-args:jupyter-julia: :cache yes
+#+PROPERTY: header-args:jupyter-julia: :eval never-export
+
+#+PROPERTY: header-args:bash: :exports code
+
+#+PROPERTY: header-args:elisp: :exports both
+
+#+PROPERTY: header-args:bibtex :exports none
+#+BIBLIOGRAPHY: "./refs.bib"
+#+BIBLIOGRAPHY: "../learn/refs.bib"
+#+PROPERTY: header-args:bibtex :tangle "./refs.bib"
+#+CITE_EXPORT: natbib
+
+
+#+LATEX_CLASS: article
+#+LATEX_CLASS_OPTIONS: [a4paper,12pt]
+#+LATEX_HEADER: \usepackage[utf8]{inputenc}
+#+LATEX_HEADER: \usepackage{booktabs} % for much better looking tables
+#+LATEX_HEADER: \usepackage{g\usepackage{babel}
+#+LATEX_HEADER: \usepackage{babel}
+#+LATEX_HEADER: \usepackage[up,bf,raggedright]{titlesec}
+#+LATEX_HEADER: \usepackage{paralist} % flexible & customisable lists (enumerate/itemize, etc.)
+#+LATEX_HEADER: \usepackage{subfig} % make it possible to include more than one captioned figure/table in a single float
+#+LATEX_HEADER: \usepackage[labelfont=bf,font=small]{caption}
+#+LATEX_HEADER: \usepackage[hidelinks]{hyperref}% for adding urls
+#+LATEX_HEADER: \usepackage{sectsty}
+#+LATEX_HEADER: \allsectionsfont{\sffamily\mdseries\upshape} % (See the fntguide.pdf for font help)
+#+LATEX_HEADER: \sectionfont{\bfseries\Large\raggedright}
+#+LATEX_HEADER: \usepackage[natbib=true]{biblatex} \DeclareFieldFormat{apacase}{#1} \addbibresource{~/org/resources/bibliography/refs.bib}
+#+LATEX_HEADER: \usepackage{parskip}
+#+LATEX_HEADER: \usepackage{amsmath}%To cleanly write equations and math text
+
+
+#+OPTIONS: <:nil c:nil todo:nil H:5
+
+Let us load the ~Python~ environment that we will need for our discussion,
+#+begin_src elisp
+(pyvenv-activate "~/.vmgr_repo/py310/")
+#+end_src
+
+#+RESULTS:
+
+Let us setup an interactive ~Python~ session where we can run the code developed here.
+#+begin_src jupyter
+print("Welcome to EMACS Jupyter")
+#+end_src
+
+
+
+#+title: Mapping: Modeling a landscape
+
+A map is a symbolic representation of an area. It can be used to show features such as roads, rivers, mountains, and cities. In practice, a map is a fascinating intersection of art, science, and storytelling that transforms our 3D world into meaningful 2D (or sometimes 3D) representations.
+
+* Setup
+** Working directory
+#+begin_src elisp
+default-directory
+#+end_src
+
+#+name: setup-paths
+#+begin_src jupyter-python
+from pathlib import Path
+workdir = Path.home()/"work/learn/scapes/project/develop/tests"
+workdir.mkdir(parents=True, exist_ok=True)
+#+end_src
+
+** Logging while interacting with ~Python~
+We use ~Python-logger~ to say what a piece of code is gonna do, or has done. Log messages do not appear when we work interactively. We can switch between Python-logger and ~print~ if we define a ~print-logger~,
+#+name: define-print-logger
+#+header: :exports both :eval no-export
+#+header: :padline yes :comments both
+#+begin_src jupyter-python :eval no-export :tangle ./utils.py
+import sys
+from datetime import datetime
+def get_logger(name, out=None):
+    name = f"PLOG-{name}"
+    formatters = that_will_grow = ["%s"]
+    LINELENGTH = 80
+    logfile = None if not out else out
+    line = lambda sentence: sentence +'\n'
+    logouts = [sys.stdout, logfile] if logfile else [sys.stdout]
+
+    def log_header(level):
+        if not level:
+            return
+        now = datetime.now().strftime("%Y-%m-%d-%H-%M")
+        for lout in logouts:
+            print(LINELENGTH * "_", file=lout)
+            print(name, "%s:"%level, "[%s]"%now, file=lout)
+            print(LINELENGTH * "-", file=lout)
+
+
+    def log_level(L, msg, args):
+        log_header(L)
+        for lout in logouts:
+            if not args:
+                print(msg, file=lout)
+            else:
+                try:
+                    print(msg%args, file=lout)
+                except TypeError as terror:
+                    print(terror, file=lout)
+                    print(msg, file=lout)
+                    print(args, file=lout)
+
+    def log(msg, args=None):
+        log_level(None, msg, args)
+
+    log.debug = lambda msg, *args: log_level("DEBUG", msg, args)
+
+    log.info = lambda msg, *args: log_level("INFO", msg, args)
+
+    log.input = lambda msg, *args: log_level("INPUT", msg, args)
+
+    log.warn = log.warning = lambda msg, *args: log_level("WARNING", msg, args)
+
+    log.error = log.err = lambda msg, *args: log_level("ERROR", msg, args)
+
+    return log
+
+#+end_src
+
+#+RESULTS: define-print-logger
+
+** Dynamic Meta-programming
+**** Multi-dispatch
+We have different shapes, and want to define methods for different shapes outside the class-body. While coding this will feel like multi-dispatch (on the first argument for now.)
+#+name: metaprogramming-bindclass
+#+begin_src jupyter-python :tangle ./utils.py
+def bindclass(definition, *mtype):
+    def decorate_attr(a):
+        for decorate in mtype:
+            a = decorate(a)
+        return a
+
+    def dispatch_attr(a):
+        a = decorate_attr(a)
+        for defn in (definition if isinstance(definition, List) else [definition]):
+            setattr(defn, a.__name__, a)
+        return a
+
+    return dispatch_attr
+#+end_src
+
+#+RESULTS: metaprogramming-bindclass
+
+**** Applicable
+An computational ~object~ that can ~apply~,
+#+name: define-applicable
+#+header: :exports both :eval no-export
+#+header: :padline yes :comments both
+#+header: :tangle ./utils.py
+#+header: :noweb no
+#+begin_src jupyter-python :results output
+def applicable(method):
+    """..."""
+    method_name = method.__name__
+
+    def typeclass(behavior):
+        def _():
+            raise TypeError(
+                "Not a direct callable. Try any of: \n%s",
+                pformat(list(behavior.keys())))
+        for name, method in behavior.items():
+            setattr(_, name, method)
+        return _
+
+    class Callable:
+        def __init__(self, behavior):
+            self._behavior = behavior
+        def apply(self, *args, **kwargs):
+            return self._behavior.apply(*args, **kwargs)
+        def __call__(self, *args, **kwargs):
+            return self._behavior.apply(*args, **kwargs)
+
+    def Applicable(behavior):
+        behavior.apply = lambda *args, **kwargs: behavior(*args, **kwargs)
+        return behavior
+
+    def dispatch(*args, **kwargs):
+        behavior = method(*args, **kwargs)
+
+        if callable(behavior):
+            return Applicable(behavior)
+
+        if isinstance(behavior, Mapping):
+            return typeclass(behavior)
+
+        if isinstance(behavior, tuple):
+            datacall, applications = behavior
+            return typeclass({
+                datacall.__name__: datacall(),
+                **{function.__name__: function for function in applications}})
+
+        if isinstance(behavior, List):
+            return typeclass({
+                function.__name__: function for function in behavior})
+
+        if hasattr(behavior, "apply"):
+            return Callable(behavior)
+
+        raise TypeError(
+            "Not Understood behavior %s: %s"%(type(behavior), behavior))
+
+    dispatch.__name__ = method_name
+    return dispatch
+#+end_src
+
+#+RESULTS: define-applicable
+
+** Monadic
+We can use ~applicable-monadic-pandas-series~,
+#+name: define-monadic-series
+#+begin_src jupyter-python :tangle ./utils.py
+@applicable
+def monadic_series(pandasseries):
+    def functor(method):
+        try:
+            name, function = method
+        except TypeError:
+            return (None, method)
+        return (name, function)
+
+    def map(method, *args, **kwargs):
+        name, function = functor(method)
+        mseries = pandasseries.apply(lambda s: function(s, *args, **kwargs))
+        return mseries if not name else mseries.rename(name)
+
+    def fmap(method, *args, **kwargs):
+        name, function = functor(method)
+        frame = pd.concat(
+            pandasseries.apply(lambda s: function(s, *args, **kwargs)).values,
+            keys=pandasseries.index)
+        return frame if not name else pd.concat([frame], axis=1, keys=[name])
+
+    return [functor, map, fmap]
+#+end_src
+
+#+RESULTS: define-monadic-series
+
+* Introduction
+
+We can think of a map as a model for a landscape. What this model gives us is a prediction of what we will find at a specific place in the landscape that the map represents. Maps describe geological, meteorological, biological, or cultural morphology of physical space. To describe spatially distributed forms computationally, we will need functions that ~map~ each spatial-point to a description of the structure found there.
+
+Imagine standing atop a Himalayan peak at dawn, as the first rays of sunlight paint the landscape below. Every ridge, valley, and meadow we see is a brushstroke in nature's canvas, each telling its own story. Just as an artist might capture this vista on cloth canvas, we can express it through mathematical functions that transform mere coordinates into rich descriptions of the world below.
+
+At each point in our view, we find an intricate layering of information:
+- The bedrock might be ancient gneiss or younger sedimentary rocks
+- The soil could vary from rich humus to bare scree
+- Vegetation might transition from dense forest to alpine meadows
+- The morning light might cast long shadows or illuminate certain faces
+- The air temperature and humidity would vary with altitude and exposure
+- Small streams might converge into larger waterways
+- Human settlements might dot certain elevations or aspects
+
+Each of these layers can be described by a mathematical function that takes a location (latitude, longitude, elevation) and returns a specific attribute. Together, they form a complete portrait of that point in the landscape. When we combine all these functions across the entire viewshed, we create a computational model that can "predict" what we might find at any given location.
+
+This mathematical representation will be our way to understand and express the poetry of a landscape, using it to:
+- Generate artistic visualizations that highlight different aspects of the terrain
+- Study how patterns of light and shadow move across the land
+- Analyze how vegetation patterns respond to elevation and aspect
+- Explore how human settlements relate to natural features
+- Create abstract art based on the mathematical patterns we discover
+
+A landscape is nature's manuscript written in the language of space - each rock, stream, and tree marking a unique point in Earth's coordinate system. When we translate this physical reality into computational coordinates, we're essentially creating a mathematical echo of the terrain, where every feature finds its digital twin in a matrix of numbers and vectors. This translation allows us to capture not just locations, but the very essence of how the landscape arranges itself across three-dimensional space. We're not just mapping the physical world - we're creating a lens through which to view its underlying patterns, rhythms and their harmony.
+
+
+* Locating space
+
+We can use ~longitude~ and ~latitude~ to locate points on the Earth's surface. To specify a region we can use bounding boxes specified by the positions of it's four corners.
+
+#+name: define-point-bbox
+#+begin_src jupyter-python
+from dataclasses import dataclass
+from lazy import lazy
+from typing import Tuple, List
+import numpy as np
+import folium
+
+@dataclass
+class GeoPoint:
+    """A point on Earth's surface specified by longitude and latitude."""
+    longitude: float  # in degrees, -180 to +180
+    latitude: float   # in degrees, -90 to +90
+
+    def __post_init__(self):
+        """Validate coordinates are within valid ranges."""
+        if not -180 <= self.longitude <= 180:
+            raise ValueError(f"Longitude {self.longitude} outside valid range [-180, 180]")
+        if not -90 <= self.latitude <= 90:
+            raise ValueError(f"Latitude {self.latitude} outside valid range [-90, 90]")
+
+    @lazy
+    def coords(self) -> Tuple[float, float]:
+        """Return coordinates as (longitude, latitude) tuple."""
+        return (self.longitude, self.latitude)
+
+@dataclass
+class BoundingBox:
+    """A rectangular region on Earth's surface defined by its corners."""
+    west: float   # minimum longitude
+    south: float  # minimum latitude
+    east: float   # maximum longitude
+    north: float  # maximum latitude
+
+    def __post_init__(self):
+        """Validate coordinates and ensure west ≤ east and south ≤ north."""
+        for lon in [self.west, self.east]:
+            if not -180 <= lon <= 180:
+                raise ValueError(f"Longitude {lon} outside valid range [-180, 180]")
+        for lat in [self.south, self.north]:
+            if not -90 <= lat <= 90:
+                raise ValueError(f"Latitude {lat} outside valid range [-90, 90]")
+        if self.west > self.east:
+            raise ValueError("Western boundary must be ≤ eastern boundary")
+        if self.south > self.north:
+            raise ValueError("Southern boundary must be ≤ northern boundary")
+
+    @lazy
+    def corners(self) -> List[GeoPoint]:
+        """Return the four corners of the bounding box as GeoPoints."""
+        return [GeoPoint(self.west, self.south),
+                GeoPoint(self.east, self.south),
+                GeoPoint(self.east, self.north),
+                GeoPoint(self.west, self.north)]
+
+    @lazy
+    def southwest(self):
+        return GeoPoint(self.west, self.south)
+
+    @lazy
+    def southeast(self):
+        return GeoPoint(self.east, self.south)
+
+    @lazy
+    def northwest(self):
+        return GeoPoint(self.west, self.north)
+
+    @lazy
+    def northeast(self):
+        return GeoPoint(self.east, self.north)
+
+    @lazy
+    def center(self) -> GeoPoint:
+        """Return the center point of the bounding box."""
+        return GeoPoint(longitude=(self.west + self.east) / 2,
+                        latitude=(self.south + self.north) / 2)
+
+    def contains(self, point: GeoPoint) -> bool:
+        """Check if a point lies within the bounding box."""
+        return (self.west <= point.longitude <= self.east
+                 and self.south <= point.latitude <= self.north)
+
+    @lazy
+    def shapely(self):
+        """Convert to shapely box for geometric operations."""
+        return box(self.sw_corner.longitude, self.sw_corner.latitude,
+                   self.ne_corner.longitude, self.ne_corner.latitude)
+#+end_src
+
+We can visualize a ~BoundingBox~ as a map using ~folium~,
+#+name: preview-map
+#+begin_src jupyter-python :noweb yes
+@bindclass(BoundingBox)
+def preview_map(bbox, zoom: int = 10, saveas=None) -> folium.Map:
+    mbox = folium.Map(location=[center.latitude, center.longitude],
+                      zoom_start=zoom,
+                      tiles="CartoDB positron", prefer_canvas=True)
+
+    coordinates = [[bbox.southwest.latitude, bbox.southwest.longitude],
+                   [bbox.northeast.latitude, bbox.southwest.longitude],
+                   [bbox.northeast.latitude, bbox.northeast.longitude],
+                   [bbox.southwest.latitude, bbox.northeast.longitude]]
+
+    folygon = folium.Polygon(coordinates, color="red", fill=False,
+                             weight=2, opacity=0.1)
+    folygon.add_to(mbox)
+
+    if saveas:
+        mbox.save(saveas)
+    return mbox
+
+#+end_src
+
+#+RESULTS: preview-map
+
+We have defined,
+1. A =GeoCoordinate= class to represent points on Earth's surface
+2. A =BoundingBox= class to define rectangular regions
+3. Validation to ensure coordinates are within valid ranges
+4. Utility methods for checking if points are within regions
+5. A method to find the center of a region
+
+Let us test this code by producing a basemap for the Parvati valley,
+#+begin_src jupyter-python
+parvati_bbox = BoundingBox(west=77.18, south=31.81, east=77.81, north=32.14)
+
+# Get the center point of our region
+center = parvati_bbox.center
+print("Center of our region:"
+      f" {center.longitude:.2f}°E, {center.latitude:.2f}°N")
+
+map_parvati = parvati_bbox.preview_map(saveas=workdir/"parvati_0.html")
+#+end_src
+
+#+RESULTS:
+: Center of our region: 77.50°E, 31.98°N
+
+
+We could extend this base implementation to add features like:
+- Distance calculations between points (using great circle distance)
+- Conversion between different coordinate systems
+- Integration with mapping libraries like =folium= or =geopandas=
+- Methods to generate grids within the bounding box
+- Functions to load and save regions in standard GIS formats
+
+* Segmenting space
+
+Mountain landscapes can be segmented into distinct zones that serve different ecological and geological functions:
+
+1. Anatomical-Geological Divisions
+   - Peaks and Ridges
+   - Valley Systems
+   - River Basins
+   - Geological Formations
+   - Fault Lines
+
+2. Functional Units
+   - Watershed Systems
+   - Water Collection Zones (glaciers, snowfields)
+   - Water Transport Zones (rivers, streams)
+   - Ecological Bands (altitude-based vegetation zones)
+   - Weather Systems Interface (cloud formation zones)
+   - Erosion/Deposition Areas
+   - Human Settlement Zones
+   - Catchment Areas
+   - River Networks
+   - Groundwater Systems
+
+3. Geological Systems
+   * Rock Formations
+   * Fault Lines
+   * Mineral Deposits
+
+4. Ecological Systems
+   * Forest Patches
+   * Grasslands
+   * Alpine Meadows
+
+5. Connectivity Patterns
+   - Wildlife Corridors
+   - River Systems
+   - Wind Patterns
+   - Human Routes
+
+6. Hierarchical Organization
+   - Major Mountain Ranges → Sub-ranges → Individual Peaks
+   - River Systems → Tributaries → Streams
+   - Vegetation Zones → Plant Communities → Individual Species
+
+7. Interface Regions
+   - Ecotones (transition zones between ecosystems)
+   - Geological Contacts
+   - Topographic Features
+   - Snowline Boundaries
+   - Treeline Boundaries
+   - Valley-Mountain Interfaces
+   - Climatic boundaries
+
+8. Process-Based Regions
+   - Snow accumulation zones
+   - Erosion hotspots
+   - Biodiversity hotspots
+   - Microclimate zones
+   - Geological fault lines
+
+9. Dynamic Systems
+   - Weather Patterns
+   - Water cycles
+   - Nutrient flows
+   - Energy transfers
+   - Species interactions
+   - Seasonal Changes
+   - Geological Processes
+   - Ecological Succession

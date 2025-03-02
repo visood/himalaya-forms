@@ -1,0 +1,374 @@
+#+STARTUP: overview
+#+STARTUP: logdrawer
+#+STARTUP: hideblocks
+
+#+PROPERTY: header-args: :eval no-export
+
+#+PROPERTY: header-args:jupyter :session ~/jupyter-run/active-local-py.json
+#+PROPERTY: header-args:jupyter: :exports both
+#+PROPERTY: header-args:jupyter: :cache yes
+#+PROPERTY: header-args:jupyter: :eval no-export
+
+#+PROPERTY: header-args:jupyter-python :session ~/jupyter-run/active-local-py.json
+#+PROPERTY: header-args:jupyter-python: :exports both
+#+PROPERTY: header-args:jupyter-python: :cache yes
+#+PROPERTY: header-args:jupyter-python: :eval no-export
+
+#+PROPERTY: header-args:jupyter-hy :session ~/jupyter-run/active-local-hy.json
+#+PROPERTY: header-args:jupyter: :exports both
+#+PROPERTY: header-args:jupyter: :cache yes
+#+PROPERTY: header-args:jupyter: :eval no-export
+
+#+PROPERTY: header-args:bash: :exports code
+
+#+PROPERTY: header-args:elisp: :exports both
+
+#+PROPERTY: header-args:bibtex :exports none
+#+BIBLIOGRAPHY: "./refs.bib"
+#+BIBLIOGRAPHY: "../learn/refs.bib"
+#+PROPERTY: header-args:bibtex :tangle "./refs.bib"
+#+CITE_EXPORT: natbib
+
+
+#+LATEX_CLASS: article
+#+header: :eval no-export
+#+LATEX_CLASS_OPTIONS: [a4paper,12pt]
+#+LATEX_HEADER: \usepackage[utf8]{inputenc}
+#+LATEX_HEADER: \usepackage{booktabs} % for much better looking tables
+#+LATEX_HEADER: \usepackage{g\usepackage{babel}
+#+LATEX_HEADER: \usepackage{babel}
+#+LATEX_HEADER: \usepackage[up,bf,raggedright]{titlesec}
+#+LATEX_HEADER: \usepackage{paralist} % flexible & customisable lists (enumerate/itemize, etc.)
+#+LATEX_HEADER: \usepackage{subfig} % make it possible to include more than one captioned figure/table in a single float
+#+LATEX_HEADER: \usepackage[labelfont=bf,font=small]{caption}
+#+LATEX_HEADER: \usepackage[hidelinks]{hyperref}% for adding urls
+#+LATEX_HEADER: \usepackage{sectsty}
+#+LATEX_HEADER: \allsectionsfont{\sffamily\mdseries\upshape} % (See the fntguide.pdf for font help)
+#+LATEX_HEADER: \sectionfont{\bfseries\Large\raggedright}
+#+LATEX_HEADER: \usepackage[natbib=true]{biblatex} \DeclareFieldFormat{apacase}{#1} \addbibresource{~/org/resources/bibliography/refs.bib}
+#+LATEX_HEADER: \usepackage{parskip}
+#+LATEX_HEADER: \usepackage{amsmath}%To cleanly write equations and math text
+
+
+#+OPTIONS: <:nil c:nil todo:nil H:5
+
+Let us load the ~Python~ environment that we will need for our discussion,
+#+begin_src elisp :results silent
+(pyvenv-activate "~/.vmgr_repo/py310/")
+#+end_src
+
+Let us setup an interactive ~Python~ session where we can run the code developed here.
+#+begin_src jupyter
+print("Welcome to EMACS Jupyter")
+#+end_src
+
+#+RESULTS:
+: Welcome to EMACS Jupyter
+
+#+title: Utils
+We will develop Python code utiilies here,
+#+begin_src jupyter-python :tangle ./utils.py :results silent
+from typing import List, Mapping
+import pandas as pd, numpy as np
+#+end_src
+
+
+* Logging while interacting with ~Python~
+We use ~Python-logger~ to say what a piece of code is gonna do, or has done. Log messages do not appear when we work interactively. We can switch between Python-logger and ~print~ if we define a ~print-logger~,
+#+name: define-print-logger
+#+header: :exports both :eval no-export
+#+header: :padline yes :comments both
+#+begin_src jupyter-python :eval no-export :tangle ./utils.py
+import sys
+from datetime import datetime
+def get_logger(name, out=None):
+    name = f"PLOG-{name}"
+    formatters = that_will_grow = ["%s"]
+    LINELENGTH = 80
+    logfile = None if not out else out
+    line = lambda sentence: sentence +'\n'
+    logouts = [sys.stdout, logfile] if logfile else [sys.stdout]
+
+    def log_header(level):
+        if not level:
+            return
+        now = datetime.now().strftime("%Y-%m-%d-%H-%M")
+        for lout in logouts:
+            print(LINELENGTH * "_", file=lout)
+            print(name, "%s:"%level, "[%s]"%now, file=lout)
+            print(LINELENGTH * "-", file=lout)
+
+
+    def log_level(L, msg, args):
+        log_header(L)
+        for lout in logouts:
+            if not args:
+                print(msg, file=lout)
+            else:
+                try:
+                    print(msg%args, file=lout)
+                except TypeError as terror:
+                    print(terror, file=lout)
+                    print(msg, file=lout)
+                    print(args, file=lout)
+
+    def log(msg, args=None):
+        log_level(None, msg, args)
+
+    log.debug = lambda msg, *args: log_level("DEBUG", msg, args)
+
+    log.info = lambda msg, *args: log_level("INFO", msg, args)
+
+    log.input = lambda msg, *args: log_level("INPUT", msg, args)
+
+    log.warn = log.warning = lambda msg, *args: log_level("WARNING", msg, args)
+
+    log.error = log.err = lambda msg, *args: log_level("ERROR", msg, args)
+
+    return log
+
+#+end_src
+
+#+RESULTS: define-print-logger
+
+* Dynamic Meta-programming
+*** Multi-dispatch
+We have different shapes, and want to define methods for different shapes outside the class-body. While coding this will feel like multi-dispatch (on the first argument for now.)
+#+name: metaprogramming-bindclass
+#+begin_src jupyter-python :tangle ./utils.py
+def bindclass(definition, *mtype):
+    def decorate_attr(a):
+        for decorate in mtype:
+            a = decorate(a)
+        return a
+
+    def dispatch_attr(a):
+        a = decorate_attr(a)
+        for defn in (definition if isinstance(definition, List) else [definition]):
+            setattr(defn, a.__name__, a)
+        return a
+
+    return dispatch_attr
+#+end_src
+
+#+RESULTS:
+
+*** Applicable
+An computational ~object~ that can ~apply~,
+#+name: define-applicable
+#+header: :exports both :eval no-export
+#+header: :padline yes :comments both
+#+header: :tangle ./utils.py
+#+header: :noweb no
+#+begin_src jupyter-python :results output
+def applicable(method):
+    """..."""
+    method_name = method.__name__
+
+    def typeclass(behavior):
+        def _():
+            raise TypeError(
+                "Not a direct callable. Try any of: \n%s",
+                pformat(list(behavior.keys())))
+        for name, method in behavior.items():
+            setattr(_, name, method)
+        return _
+
+    class Callable:
+        def __init__(self, behavior):
+            self._behavior = behavior
+        def apply(self, *args, **kwargs):
+            return self._behavior.apply(*args, **kwargs)
+        def __call__(self, *args, **kwargs):
+            return self._behavior.apply(*args, **kwargs)
+
+    def Applicable(behavior):
+        behavior.apply = lambda *args, **kwargs: behavior(*args, **kwargs)
+        return behavior
+
+    def dispatch(*args, **kwargs):
+        behavior = method(*args, **kwargs)
+
+        if callable(behavior):
+            return Applicable(behavior)
+
+        if isinstance(behavior, Mapping):
+            return typeclass(behavior)
+
+        if isinstance(behavior, tuple):
+            datacall, applications = behavior
+            return typeclass({
+                datacall.__name__: datacall(),
+                **{function.__name__: function for function in applications}})
+
+        if isinstance(behavior, List):
+            return typeclass({
+                function.__name__: function for function in behavior})
+
+        if hasattr(behavior, "apply"):
+            return Callable(behavior)
+
+        raise TypeError(
+            "Not Understood behavior %s: %s"%(type(behavior), behavior))
+
+    dispatch.__name__ = method_name
+    return dispatch
+#+end_src
+
+#+RESULTS: define-applicable
+
+* Monadic
+We can use ~applicable-monadic-pandas-series~,
+#+name: define-monadic-series
+#+begin_src jupyter-python :tangle ./utils.py
+@applicable
+def monadic_series(pandasseries):
+    def functor(method):
+        try:
+            name, function = method
+        except TypeError:
+            return (None, method)
+        return (name, function)
+
+    def map(method, *args, **kwargs):
+        name, function = functor(method)
+        mseries = pandasseries.apply(lambda s: function(s, *args, **kwargs))
+        return mseries if not name else mseries.rename(name)
+
+    def fmap(method, *args, **kwargs):
+        name, function = functor(method)
+        frame = pd.concat(
+            pandasseries.apply(lambda s: function(s, *args, **kwargs)).values,
+            keys=pandasseries.index)
+        return frame if not name else pd.concat([frame], axis=1, keys=[name])
+
+    return [functor, map, fmap]
+#+end_src
+
+#+RESULTS:
+
+* Dynamic Parameters
+We can use a ~Python-class~ to handle parameterization of a model, or a computation.
+#+name: define-dynamics-parameters
+#+header: :exports both :eval no-export
+#+header: :padline yes :comments both
+#+header: :tangle ./utils.py
+#+header: :noweb no
+#+begin_src jupyter-python :results output
+from dataclasses import dataclass
+@dataclass
+class Variable:
+    name: str
+    type: (str, int, float, np.dtype)
+
+def var(**kwargs):
+    if len(kwargs) == 1:
+        name, type = next(iter(kwargs.items()))
+        return Variable(name, type)
+
+    return Parameters(**kwargs)
+
+class Parameters(pd.Series):
+    def __init__(params, **kwargs):
+        super().__init__(
+            {var: val if isinstance(val, Variable) else Variable(*val)
+             for var, val in kwargs.items()})
+        params.vars = params.apply(lambda var: var.name)
+
+    @property
+    def vals(params):
+        return params._vals
+
+    @vals.setter
+    def vals(params, values):
+        params._vals = params.vars.apply(lambda q: values.get(q))
+        return params
+
+    def evaluate(self, **values):
+        params = self.__class__(**self.to_dict())
+        params.vals = values
+        return params
+
+    def get_values(params, data):
+        return data[params.vars.values]
+
+    def __call__(params, data):
+        return params.get_values(data)
+#+end_src
+
+#+RESULTS: define-dynamics-parameters
+
+#+name: example-use-parametric
+#+begin_src jupyter-python
+sphere_params = Parameters(radius=var(r=np.float64))
+cylinder_params = Parameters(height=var(y=np.float64), radius=var(r=np.float64))
+
+LOG.info("Spherical parameters: \n%s", pformat(sphere_params))
+LOG.info("Cylinderical parameters: \n%s", pformat(cylinder_params))
+#+end_src
+
+#+RESULTS: example-use-parametric
+#+begin_example
+________________________________________________________________________________
+PLOG-shapes INFO: [2024-11-01-08-27]
+--------------------------------------------------------------------------------
+Spherical parameters:
+radius    Variable(name='r', type=<class 'numpy.float64'>)
+dtype: object
+________________________________________________________________________________
+PLOG-shapes INFO: [2024-11-01-08-27]
+--------------------------------------------------------------------------------
+Cylinderical parameters:
+height    Variable(name='y', type=<class 'numpy.float64'>)
+radius    Variable(name='r', type=<class 'numpy.float64'>)
+dtype: object
+#+end_example
+
+Having defined spherical, and cylindrical parameters, we can extract their values from ~data~,
+#+begin_src jupyter-python
+pvals = pd.DataFrame({"y": np.random.uniform(0, 1, 5), "r": np.random.uniform(0, 1, 5)})
+LOG.info("in data spherical parameters: \n%s\n cylindrical parameters: \n%s\n",
+         sphere_params.get_values(pvals), cylinder_params.get_values(pvals))
+
+LOG.info("or call: data spherical parameters: \n%s\n cylindrical parameters: \n%s\n",
+         sphere_params(pvals), cylinder_params(pvals))
+#+end_src
+
+#+RESULTS:
+#+begin_example
+________________________________________________________________________________
+PLOG-shapes INFO: [2024-10-16-09-48]
+--------------------------------------------------------------------------------
+in data spherical parameters:
+          r
+0  0.689409
+1  0.816409
+2  0.858920
+3  0.938920
+4  0.326341
+ cylindrical parameters:
+          y         r
+0  0.741176  0.689409
+1  0.560289  0.816409
+2  0.089739  0.858920
+3  0.093947  0.938920
+4  0.278349  0.326341
+
+________________________________________________________________________________
+PLOG-shapes INFO: [2024-10-16-09-48]
+--------------------------------------------------------------------------------
+or call: data spherical parameters:
+          r
+0  0.689409
+1  0.816409
+2  0.858920
+3  0.938920
+4  0.326341
+ cylindrical parameters:
+          y         r
+0  0.741176  0.689409
+1  0.560289  0.816409
+2  0.089739  0.858920
+3  0.093947  0.938920
+4  0.278349  0.326341
+#+end_example

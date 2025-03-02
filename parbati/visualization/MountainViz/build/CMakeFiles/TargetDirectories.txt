@@ -1,0 +1,3 @@
+/Users/vishalsoodmuchu/work/learn/scapes/project/himalaya-forms/parbati/visualization/MountainViz/build/CMakeFiles/MountainViz.dir
+/Users/vishalsoodmuchu/work/learn/scapes/project/himalaya-forms/parbati/visualization/MountainViz/build/CMakeFiles/edit_cache.dir
+/Users/vishalsoodmuchu/work/learn/scapes/project/himalaya-forms/parbati/visualization/MountainViz/build/CMakeFiles/rebuild_cache.dir

@@ -1,0 +1,19 @@
+window:
+  width: 1200
+  height: 800
+  title: "Himalayan Mountain Visualization"
+
+camera:
+  position: [0.0, 100.0, 200.0]
+  front: [0.0, 0.0, -1.0]
+  up: [0.0, 1.0, 0.0]
+  yaw: -90.0
+  pitch: 0.0
+  movement_speed: 10.0
+  sensitivity: 0.01
+
+terrain:
+  roughness: 0.25
+  size: 128
+  height: 25.0
+  wireframe: false
