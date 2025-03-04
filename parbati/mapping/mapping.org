@@ -282,7 +282,6 @@ This mathematical representation will be our way to understand and express the p
 
 A landscape is nature's manuscript written in the language of space - each rock, stream, and tree marking a unique point in Earth's coordinate system. When we translate this physical reality into computational coordinates, we're essentially creating a mathematical echo of the terrain, where every feature finds its digital twin in a matrix of numbers and vectors. This translation allows us to capture not just locations, but the very essence of how the landscape arranges itself across three-dimensional space. We're not just mapping the physical world - we're creating a lens through which to view its underlying patterns, rhythms and their harmony.
 
-
 * Locating space
 
 We can use ~longitude~ and ~latitude~ to locate points on the Earth's surface. To specify a region we can use bounding boxes specified by the positions of it's four corners.

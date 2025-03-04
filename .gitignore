@@ -43,5 +43,10 @@ htmlcov
 *_cache.py
 *.log
 
+parbati/visualization/MountainViz/build/
+*.make
+*.o
+
+
 # AI help
 aihelp/

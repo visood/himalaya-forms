@@ -82,7 +82,7 @@ void ProceduralTerrain::generateDiamondSquare(float roughness, float maxHeight) 
                     getHeight(x + step, z + step)
                 ) / 4.0f;
 
-                float offset = dist(rng) * scale;
+                float offset = std::fabs(dist(rng)) * scale;
                 setHeight(x + halfStep, z + halfStep, avg + offset);
             }
         }
@@ -113,7 +113,7 @@ void ProceduralTerrain::generateDiamondSquare(float roughness, float maxHeight) 
 
                 avg /= count;
                 float offset = dist(rng) * scale;
-                setHeight(x, z, avg + offset);
+                setHeight(x, z, std::fabs(avg + offset));
             }
         }
 

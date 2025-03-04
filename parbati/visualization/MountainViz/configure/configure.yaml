@@ -15,5 +15,5 @@ camera:
 terrain:
   roughness: 0.25
   size: 128
-  height: 25.0
+  height: 30.0
   wireframe: false
