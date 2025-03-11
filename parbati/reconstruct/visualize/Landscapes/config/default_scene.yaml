@@ -1,0 +1,90 @@
+# Default Scene Configuration for Himalayan Landscapes Visualization
+
+General:
+  SceneName: "Himalayan Valley"
+  SceneDescription: "Default visualization of a Himalayan mountain landscape"
+  GlobalScale: 1.0
+  RandomSeed: 12345
+  TimeOfDay: 10.0
+  EnableSimulation: true
+  SimulationSpeed: 1.0
+
+Window:
+  Width: 1280
+  Height: 720
+  Fullscreen: false
+  Title: "Himalayan Landscapes"
+  VSync: true
+  MsaaSamples: 4
+  BackgroundClearColor: [0.5, 0.6, 0.7, 1.0]
+
+UI:
+  ShowUI: true
+  ShowFPS: true
+  ShowCoordinates: true
+  ShowControlHelp: true
+  UIScale: 1.0
+  DarkTheme: true
+  ShowDebugInfo: false
+
+Terrain:
+  Enabled: true
+  BaseHeight: 0.0
+  HeightScale: 500.0
+  Resolution: 1024
+  HeightmapPath: ""
+  UseProceduralTerrain: true
+  BaseColor: [0.5, 0.45, 0.4]
+  Roughness: 0.7
+  LodLevels: 5
+  LodDistance: 500.0
+  Wireframe: false
+
+Camera:
+  InitialPosition: [500.0, 300.0, 500.0]
+  InitialTarget: [0.0, 0.0, 0.0]
+  FieldOfView: 60.0
+  NearPlane: 0.1
+  FarPlane: 10000.0
+  MoveSpeed: 100.0
+  RotateSpeed: 0.1
+  ZoomSpeed: 10.0
+  InvertY: false
+  TerrainFollow: false
+  TerrainOffset: 10.0
+
+Lighting:
+  EnableShadows: true
+  ShadowMapResolution: 2048
+  AmbientIntensity: 0.3
+  AmbientColor: [0.6, 0.7, 0.9]
+  SunDirection: [0.5, -0.8, 0.2]
+  SunColor: [1.0, 0.95, 0.8]
+  SunIntensity: 1.0
+  DynamicTimeOfDay: true
+  FogDensity: 0.00025
+  FogColor: [0.75, 0.85, 0.9]
+
+Water:
+  Enabled: true
+  Height: 50.0
+  Color: [0.0, 0.3, 0.5]
+  Transparency: 0.7
+  WaveHeight: 0.2
+  WaveSpeed: 0.05
+  Reflectivity: 0.6
+
+Vegetation:
+  Enabled: true
+  TreeDensity: 0.02
+  GrassDensity: 0.6
+  TreeTypes: 3
+  MaxTrees: 5000
+  MaxGrass: 100000
+  WindEffect: true
+
+Atmosphere:
+  CloudCoverage: 0.3
+  CloudHeight: 1000.0
+  CloudSpeed: 5.0
+  SkyIntensity: 1.0

@@ -1,0 +1,82 @@
+#+STARTUP: overview
+#+STARTUP: logdrawer
+#+STARTUP: hideblocks
+
+#+PROPERTY: header-args: :eval never-export
+
+#+PROPERTY: header-args:jupyter :session ~/jupyter-run/active-local-py.json
+#+PROPERTY: header-args:jupyter: :exports both
+#+PROPERTY: header-args:jupyter: :cache yes
+#+PROPERTY: header-args:jupyter: :eval never-export
+
+#+PROPERTY: header-args:jupyter-python :session ~/jupyter-run/active-local-py.json
+#+PROPERTY: header-args:jupyter-python: :exports both
+#+PROPERTY: header-args:jupyter-python: :cache yes
+#+PROPERTY: header-args:jupyter-python: :eval never-export
+
+#+PROPERTY: header-args:jupyter-julia :session ~/jupyter-run/active-local-jl.json
+#+PROPERTY: header-args:jupyter-julia: :exports both
+#+PROPERTY: header-args:jupyter-julia: :cache yes
+#+PROPERTY: header-args:jupyter-julia: :eval never-export
+
+#+PROPERTY: header-args:bash: :exports code
+
+#+PROPERTY: header-args:elisp: :exports both
+
+#+PROPERTY: header-args:bibtex :exports none
+#+BIBLIOGRAPHY: "./refs.bib"
+#+BIBLIOGRAPHY: "../learn/refs.bib"
+#+PROPERTY: header-args:bibtex :tangle "./refs.bib"
+#+CITE_EXPORT: natbib
+
+
+#+LATEX_CLASS: article
+#+LATEX_CLASS_OPTIONS: [a4paper,12pt]
+#+LATEX_HEADER: \usepackage[utf8]{inputenc}
+#+LATEX_HEADER: \usepackage{booktabs} % for much better looking tables
+#+LATEX_HEADER: \usepackage{g\usepackage{babel}
+#+LATEX_HEADER: \usepackage{babel}
+#+LATEX_HEADER: \usepackage[up,bf,raggedright]{titlesec}
+#+LATEX_HEADER: \usepackage{paralist} % flexible & customisable lists (enumerate/itemize, etc.)
+#+LATEX_HEADER: \usepackage{subfig} % make it possible to include more than one captioned figure/table in a single float
+#+LATEX_HEADER: \usepackage[labelfont=bf,font=small]{caption}
+#+LATEX_HEADER: \usepackage[hidelinks]{hyperref}% for adding urls
+#+LATEX_HEADER: \usepackage{sectsty}
+#+LATEX_HEADER: \allsectionsfont{\sffamily\mdseries\upshape} % (See the fntguide.pdf for font help)
+#+LATEX_HEADER: \sectionfont{\bfseries\Large\raggedright}
+#+LATEX_HEADER: \usepackage[natbib=true]{biblatex} \DeclareFieldFormat{apacase}{#1} \addbibresource{~/org/resources/bibliography/refs.bib}
+#+LATEX_HEADER: \usepackage{parskip}
+#+LATEX_HEADER: \usepackage{amsmath}%To cleanly write equations and math text
+
+
+#+OPTIONS: <:nil c:nil todo:nil H:5
+
+Let us load the ~Python~ environment that we will need for our discussion,
+#+begin_src elisp
+(pyvenv-activate "~/.vmgr_repo/py310/")
+#+end_src
+
+#+RESULTS:
+
+Let us setup an interactive ~Python~ session where we can run the code developed here.
+#+begin_src jupyter
+print("Welcome to EMACS Jupyter")
+#+end_src
+
+
+#+title: Landscape
+#+subtitle: Digital forms for Himalayan Rhythms and Patterns
+
+* What is a landscape
+
+A landscape is a complex system that emerges from the interaction of numerous earth processes operating across multiple spatial and temporal scales. From a mathematical perspective, we can think of a landscape as a continuous function that maps two-dimensional spatial coordinates to various properties-most fundamentally elevation, but also including vegetation cover, soil properties, water distribution, and human modication.
+
+When we observe a landscape, whether standing on a Himalayan ridge or viewing satellite imagery, we're seeing the outcome of processes that include:
+
+1. *Tectonic forces* that build mountains over millions of years
+2. *Erosional processes* like water flow, glaciation, and wind that carve the land
+3. *Biological interactions* that determine vegetation patterns
+4. *Climate influences* that affect weathering and water distribution
+5. *Human activities* that reshape terrain and land cover
+
+These processes don't operate independently—they form feedback loops. For example, mountain building creates elevation gradients that accelerate erosion, while vegetation patterns influence how water flows across the landscape, which in turn affects future erosion.

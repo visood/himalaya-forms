@@ -1,0 +1,7 @@
+#pragma once
+
+namespace Paths {
+    constexpr const char* ASSETS_DIR = "@ASSETS_DIR@";
+    constexpr const char* SHADERS_DIR = "@SHADERS_DIR@";
+    constexpr const char* CONFIG_DIR = "${CMAKE_BINARY_DIR}/config";
+}

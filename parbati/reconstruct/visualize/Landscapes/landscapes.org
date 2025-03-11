@@ -1,0 +1,27 @@
+#+title: Landscapes
+
+A map is a model for a landscape, providing a summary of what we will find at a specific place in the landscape that the map represents. Maps may describe geology, metereology, biology, or cultural morphology of physical space.
+
+Imagine standing atop a Himalayan peak at dawn, as the first rays of sunlight paint the landscape below. Every ridge, valley, and meadow we see is a brushstroke in nature's canvas, each telling its own story. Just as an artist might capture this vista on canvas, we can express it through mathematical functions that transform mere coordinates into rich descriptions of the world below.
+
+Let's consider how we could mathematically capture one such morning scene:
+
+At each point in our view, there's an intricate layering of information:
+- The bedrock might be ancient gneiss or younger sedimentary rocks
+- The soil could vary from rich humus to bare scree
+- Vegetation might transition from dense forest to alpine meadows
+- The morning light might cast long shadows or illuminate certain faces
+- The air temperature and humidity would vary with altitude and exposure
+- Small streams might converge into larger waterways
+- Human settlements might dot certain elevations or aspects
+
+Each of these layers is like a mathematical function that takes a location (latitude, longitude, elevation) and returns a specific attribute. Together, they form a complete portrait of that point in the landscape. When we combine all these functions across the entire viewshed, we create a computational model that can "predict" what we might find at any given location.
+
+This mathematical representation isn't just a dry abstraction - it's a way to understand and express the poetry of the landscape. We could use it to:
+- Generate artistic visualizations that highlight different aspects of the terrain
+- Study how patterns of light and shadow move across the land
+- Analyze how vegetation patterns respond to elevation and aspect
+- Explore how human settlements relate to natural features
+- Create abstract art based on the mathematical patterns we discover
+
+By building such a model, we're not just mapping the physical world - we're creating a lens through which to view its underlying rhythms and harmonies.

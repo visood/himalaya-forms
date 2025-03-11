@@ -1,0 +1,70 @@
+#+STARTUP: overview
+#+STARTUP: logdrawer
+#+STARTUP: hideblocks
+
+#+PROPERTY: header-args: :eval never-export
+
+#+PROPERTY: header-args:jupyter :session ~/jupyter-run/active-local-py.json
+#+PROPERTY: header-args:jupyter: :exports both
+#+PROPERTY: header-args:jupyter: :cache yes
+#+PROPERTY: header-args:jupyter: :eval never-export
+
+#+PROPERTY: header-args:jupyter-python :session ~/jupyter-run/active-local-py.json
+#+PROPERTY: header-args:jupyter-python: :exports both
+#+PROPERTY: header-args:jupyter-python: :cache yes
+#+PROPERTY: header-args:jupyter-python: :eval never-export
+
+#+PROPERTY: header-args:jupyter-julia :session ~/jupyter-run/active-local-jl.json
+#+PROPERTY: header-args:jupyter-julia: :exports both
+#+PROPERTY: header-args:jupyter-julia: :cache yes
+#+PROPERTY: header-args:jupyter-julia: :eval never-export
+
+#+PROPERTY: header-args:bash: :exports code
+
+#+PROPERTY: header-args:elisp: :exports both
+
+#+PROPERTY: header-args:bibtex :exports none
+#+BIBLIOGRAPHY: "./refs.bib"
+#+BIBLIOGRAPHY: "../learn/refs.bib"
+#+PROPERTY: header-args:bibtex :tangle "./refs.bib"
+#+CITE_EXPORT: natbib
+
+
+#+LATEX_CLASS: article
+#+LATEX_CLASS_OPTIONS: [a4paper,12pt]
+#+LATEX_HEADER: \usepackage[utf8]{inputenc}
+#+LATEX_HEADER: \usepackage{booktabs} % for much better looking tables
+#+LATEX_HEADER: \usepackage{g\usepackage{babel}
+#+LATEX_HEADER: \usepackage{babel}
+#+LATEX_HEADER: \usepackage[up,bf,raggedright]{titlesec}
+#+LATEX_HEADER: \usepackage{paralist} % flexible & customisable lists (enumerate/itemize, etc.)
+#+LATEX_HEADER: \usepackage{subfig} % make it possible to include more than one captioned figure/table in a single float
+#+LATEX_HEADER: \usepackage[labelfont=bf,font=small]{caption}
+#+LATEX_HEADER: \usepackage[hidelinks]{hyperref}% for adding urls
+#+LATEX_HEADER: \usepackage{sectsty}
+#+LATEX_HEADER: \allsectionsfont{\sffamily\mdseries\upshape} % (See the fntguide.pdf for font help)
+#+LATEX_HEADER: \sectionfont{\bfseries\Large\raggedright}
+#+LATEX_HEADER: \usepackage[natbib=true]{biblatex} \DeclareFieldFormat{apacase}{#1} \addbibresource{~/org/resources/bibliography/refs.bib}
+#+LATEX_HEADER: \usepackage{parskip}
+#+LATEX_HEADER: \usepackage{amsmath}%To cleanly write equations and math text
+
+
+#+OPTIONS: <:nil c:nil todo:nil H:5
+
+Let us load the ~Python~ environment that we will need for our discussion,
+#+begin_src elisp
+(pyvenv-activate "~/.vmgr_repo/py310/")
+#+end_src
+
+#+RESULTS:
+
+Let us setup an interactive ~Python~ session where we can run the code developed here.
+#+begin_src jupyter
+print("Welcome to EMACS Jupyter")
+#+end_src
+
+
+#+title: Observation
+#+subtitle: Digital Forms for Himalayan Rhythms and Patterns
+
+We will observe Earth, and systems prevalent there. Earth's dynamic and complex environment results from interconnected components, processes, and cycles. These systems interact across multiple scales of space and time to create the conditions that support life on Earth. Here we will develop an understanding of observing Earth-systems via computational analysis, reconstruction, and simulation. We will illustrate our understanding with Himalaya as our example.
