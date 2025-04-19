@@ -1,0 +1,1006 @@
+#+PROPERTY: SRCLOC /Users/vishalsoodmuchu/work/learn/scapes/project/himalaya-forms/parbati/src/cpp
+
+#+title: Application Window
+
+We can use ~OpenGL~ to create windows. Let's design a =Window= class that will handle our application window. This will be one of our most foundational components that manages the application's main window, including creation, resizing, event handling, and cleanup.
+
+* Public interface
+#+name: application-interface
+#+begin_src cpp :main no :tangle no :noweb yes
+/**
+ ,* @brief Constructor with window configuration.
+ ,*
+ ,* @param width Initial window width in pixels
+ ,* @param height Initial window height in pixels
+ ,* @param title Window title
+ ,* @param fullscreen Whether to start in fullscreen mode
+ ,* @param vsync Whether to enable vertical sync
+ ,*/
+
+Window(int width = 1280, int height = 720,
+       const std::string& title = "Himalayan Landscapes",
+       bool fullscreen = false, bool vsync = true);
+
+Window(const SceneConfig& config);
+
+/**
+ ,* @brief Destructor to clean up window resources.
+ ,*/
+~Window();
+
+/**
+ ,* @brief Initialize the window and GL context.
+ ,*
+ ,* @return true if initialization was successful
+ ,*/
+bool initialize();
+
+/**
+ ,* @brief Check if the window should close.
+ ,*
+ ,* @return true if the window should close
+ ,*/
+bool should_close() const;
+
+/**
+ ,* @brief Mark the window for closing.
+ ,*/
+void close();
+
+/**
+ ,* @brief Process all pending window events.
+ ,*/
+void poll_events();
+
+/**
+ ,* @brief Swap the frame buffers to display the rendered content.
+ ,*/
+void swap_buffers();
+
+/**
+ ,* @brief Toggle fullscreen mode.
+ ,*/
+void toggle_full_screen();
+
+/**
+ ,* @brief Resize the window.
+ ,*
+ ,* @param width New width in pixels
+ ,* @param height New height in pixels
+ ,*/
+void resize(int width, int height);
+
+/**
+ ,* @brief Set the window title.
+ ,*
+ ,* @param title New window title
+ ,*/
+void set_title(const std::string& title);
+
+/**
+ ,* @brief Set the vertical sync option.
+ ,*
+ ,* @param enabled Whether to enable vsync
+ ,*/
+void set_vsync(bool enabled);
+
+/**
+ ,* @brief Register a callback for window resize events.
+ ,*
+ ,* @param callback Function to call when window is resized
+ ,*/
+void set_resize_callback(std::function<void(int, int)> callback);
+
+/**
+ ,* @brief Register a callback for mouse movement.
+ ,*
+ ,* @param callback Function to call when mouse moves
+ ,*/
+void set_mouse_move_callback(std::function<void(double, double)> callback);
+
+/**
+ ,* @brief Register a callback for mouse button events.
+ ,*
+ ,* @param callback Function to call on mouse button events
+ ,*/
+void set_mouse_button_callback(std::function<void(int, int, int)> callback);
+
+/**
+ ,* @brief Register a callback for keyboard events.
+ ,*
+ ,* @param callback Function to call on keyboard events
+ ,*/
+void set_key_callback(std::function<void(int, int, int, int)> callback);
+
+/*
+ ,* @brief Get the current window width.
+ ,*
+ ,* @return Window width in pixels
+ ,*/
+int get_width() const { return _width; }
+
+/*
+ ,* @brief Get the current window height.
+ ,*
+ ,* @return Window height in pixels
+ ,*/
+int get_height() const { return _height; }
+
+/*
+ ,* @brief Get the window aspect ratio.
+ ,*
+ ,* @return Width divided by height
+ ,*/
+float get_aspect_ratio() const { return static_cast<float>(_width) / _height; }
+
+/*
+ ,* @brief Get the window handle.
+ ,*
+ ,* @return Platform-specific window handle
+ ,*/
+GLFWwindow* get_native_handle() const { return _window_handle; }
+
+/*
+ ,* @brief Check if the window is in fullscreen mode.
+ ,*
+ ,* @return true if fullscreen
+ ,*/
+bool is_fullscreen() const { return _fullscreen; }
+
+/*
+ ,* @brief Get the current cursor position.
+ ,*
+ ,* @param x Reference to store the x coordinate
+ ,* @param y Reference to store the y coordinate
+ ,*/
+void get_cursor_position(double& x, double& y) const;
+
+/*
+ ,* @brief Set cursor position.
+ ,*
+ ,* @param x X coordinate
+ ,* @param y Y coordinate
+ ,*/
+void set_cursor_position(double x, double y);
+
+/*
+ ,* @brief Show or hide the cursor.
+ ,*
+ ,* @param visible Whether the cursor should be visible
+ ,*/
+void show_cursor(bool visible);
+
+/*
+ ,* @brief Check if a key is currently pressed.
+ ,*
+ ,* @param key Key code to check
+ ,* @return true if the key is pressed
+ ,*/
+bool is_key_pressed(int key) const;
+
+/*
+ ,* @brief Check if a mouse button is currently pressed.
+ ,*
+ ,* @param button Mouse button code to check
+ ,* @return true if the button is pressed
+ ,*/
+bool is_mouse_button_pressed(int button) const;
+#+end_src
+
+* Private data and members
+#+name: application-private-parts
+#+begin_src cpp :main no :tangle no :noweb yes
+// Window properties
+int         _width;
+int         _height;
+int         _msaa_samples;
+std::string _title;
+bool        _fullscreen;
+bool        _vsync;
+bool        _running;
+
+/*
+ ,* _windowed_<var>
+ ,* These variables store the position and dimensions of the window when in
+ ,* windowed mode, allowing the application to seamlessly transition between
+ ,* fullscreen and windowed states while preserving the user's preferred window
+ ,* configuration across mode switches.
+ ,*/
+int _windowed_pos_x;    // X position of window before fullscreen
+int _windowed_pos_y;    // Y position of window before fullscreen
+int _windowed_width;    // Width of window before fullscreen
+int _windowed_height;   // Height of window before fullscreen
+
+// Window handle (platform-specific)
+GLFWwindow* _window_handle;  // Using GLFW as an example
+
+// Event callbacks
+std::function<void(int, int)>           _resize_callback;
+std::function<void(double, double)>     _mouse_move_callback;
+std::function<void(int, int, int)>      _mouse_button_callback;
+std::function<void(int, int, int, int)> _key_callback;
+
+// Private initialization methods
+bool _initialize_glfw();
+bool _create_window_context();
+void _setup_callbacks();
+#+end_src
+
+* Header
+#+header: :tangle (concat (org-entry-get nil "SRCLOC" t) "/Landscapes/include/core/window.hpp")
+#+begin_src cpp :main no :noweb yes
+/**
+ ,* @class Window
+ ,* @brief Handles the creation and management of the application window.
+ ,*
+ ,* The Window class is responsible for creating and managing the main application
+ ,* window, handling resize events, processing input, and maintaining the OpenGL context.
+ ,* It serves as the interface between our application and the underlying windowing
+ ,* system.
+ ,*/
+
+#pragma once
+
+#include "opengl_includes.hpp"                 // Windowing library
+
+#include <functional>                   // For callback functions
+#include <string>                       // For std::string
+#include <iostream>                     // For error reporting
+#include <stdexcept>                    // For exception handling
+#include <unordered_map>                // For key mapping
+#include <array>                        // For fixed-size arrays
+#include <optional>                     // For optional values
+#include <tuple>                        // For std::tuple
+
+#include "utilities/logger.hpp"
+#include "core/scene_config.hpp"             // To access window settings
+#include <glm/glm.hpp>                  // For vector math
+#include <glm/gtc/matrix_transform.hpp> // For camera transformations
+
+class Window {
+public:
+    <<application-interface>>
+
+private:
+    <<application-private-parts>>
+};
+#+end_src
+
+* Construct
+
+#+name: window-construct
+#+begin_src cpp :main no :noweb yes :tangle no
+Window::Window(int width, int height, const std::string& title,
+               bool fullscreen, bool vsync)
+    : _width(width)
+    , _height(height)
+    , _title(title)
+    , _fullscreen(fullscreen)
+    , _vsync(vsync)
+    , _running(false)
+    , _window_handle(nullptr)
+{
+    // Only initialize member variables, use initialize() to create window
+    /*
+      ,* _windowed_<var>
+      ,* These variables store the position and dimensions of the window when in
+      ,* windowed mode, allowing the application to seamlessly transition between
+      ,* fullscreen and windowed states while preserving the user's preferred window
+      ,* configuration across mode switches.
+      ,*/
+    _windowed_pos_x = 0;
+    _windowed_pos_y = 0;
+    _windowed_width = _width;
+    _windowed_height = _height;
+
+    // Initialize callbacks
+    _resize_callback = [](int, int) {};
+    _mouse_move_callback = [](double, double) {};
+    _mouse_button_callback = [](int, int, int) {};
+    _key_callback = [](int, int, int, int){};
+}
+
+Window::Window(const SceneConfig& config)
+    : _width(config.window.width)
+    , _height(config.window.height)
+    , _title(config.window.title)
+    , _fullscreen(config.window.fullscreen)
+    , _vsync(config.window.vsync)
+    , _running(false)
+    , _window_handle(nullptr)
+{
+    // Only initialize member variables, use initialize() to create window
+    /*
+      ,* _windowed_<var>
+      ,* These variables store the position and dimensions of the window when in
+      ,* windowed mode, allowing the application to seamlessly transition between
+      ,* fullscreen and windowed states while preserving the user's preferred window
+      ,* configuration across mode switches.
+      ,*/
+    _windowed_pos_x = 0;
+    _windowed_pos_y = 0;
+    _windowed_width = _width;
+    _windowed_height = _height;
+
+    // Initialize callbacks
+    _resize_callback = [](int, int) {};
+    _mouse_move_callback = [](double, double) {};
+    _mouse_button_callback = [](int, int, int) {};
+    _key_callback = [](int, int, int, int){};
+}
+#+end_src
+
+* Destruct
+Destructor is simple,
+#+name: window-destruct
+#+begin_src cpp :main no :noweb yes :tangle no
+Window::~Window()
+{
+    if (_window_handle)
+    {
+        glfwDestroyWindow(_window_handle);
+        _window_handle = nullptr;
+    }
+    glfwTerminate();
+}
+#+end_src
+
+* Initialize
+Initialization will take us on a longer tour,
+#+name: window-initialize
+#+begin_src cpp :main no :noweb yes :tangle no
+bool Window::initialize()
+{
+    LOG_DEBUG(CORE_LOG, "Window::initialize()");
+
+    if (!_initialize_glfw()) {
+        LOG_ERROR(CORE_LOG, "Failed to initialize GLFW");
+        return false;
+    }
+
+    if (!_create_window_context()) {
+        LOG_ERROR(CORE_LOG, "Failed to create window context");
+        return false;
+    }
+    else {
+        glfwShowWindow(_window_handle);
+    }
+
+    _setup_callbacks();
+
+    // Some systems require explicit vsync settings
+    glfwSwapInterval(_vsync ? 1 : 0);
+
+    glfwSetWindowUserPointer(_window_handle, this);
+
+    const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+    LOG_DEBUG(CORE_LOG, "Creating window: {}x{}, Monitor: {}x{}",
+              _width, _height, mode->width, mode->height);
+
+    LOG_DEBUG(CORE_LOG, "Window::initialize() ... run");
+    _running = true;
+    return true;
+}
+#+end_src
+
+We will need to implement =Window='s private methods to make ~initialize~ work,
+#+name: window-initialize-glfw
+#+begin_src cpp :main no :noweb yes :tangle no
+bool Window::_initialize_glfw()
+{
+    LOG_DEBUG(CORE_LOG, "Window::_initialize_glfw()...");
+    // Initialize GLFW
+    if (!glfwInit())
+    {
+        return false;
+    }
+
+    // Set error callback
+    glfwSetErrorCallback([](int error, const char* description) {
+        LOG_ERROR(CORE_LOG, "GLFW Error {}: {}", error, description);
+        //std::cerr << "GLFW Error " << error << ": " << description << std::endl;
+    });
+
+    // Set OpenGL version hints
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    // Further hints to ensure window visibility
+    glfwWindowHint(GLFW_FOCUSED, GLFW_TRUE);
+    glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
+
+    // Enable multisample anti-aliasing
+    glfwWindowHint(GLFW_SAMPLES, 4);
+
+    // Set forward compatibility for macOS
+    #ifdef __APPLE__
+        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+    #endif
+
+    return true;
+}
+#+end_src
+
+and also to create a window context,
+#+name: window-create-context
+#+begin_src cpp :main no :noweb yes :tangle no
+bool Window::_create_window_context()
+{
+    // Get primary monitor for fullscreen
+    GLFWmonitor* monitor = _fullscreen ? glfwGetPrimaryMonitor() : nullptr;
+
+    // Create the window
+    LOG_DEBUG(CORE_LOG, "Window::_create_window_context()...");
+    _window_handle =
+        glfwCreateWindow(_width, _height, _title.c_str(), monitor, nullptr);
+
+    if (!_window_handle) {
+        LOG_ERROR(CORE_LOG,
+                  "Window::_create_window_context()::FAILURE to create window handle");
+        glfwTerminate();
+        return false;
+    } else {
+        LOG_DEBUG(CORE_LOG,
+                  "Window::_create_window_context()::SUCCESS to create window handle");
+    }
+
+    // Make the window's context current
+    glfwMakeContextCurrent(_window_handle);
+
+    // Get actual window size (may differ from requested size)
+    int actual_width, actual_height;
+    glfwGetFramebufferSize(_window_handle, &actual_width, &actual_height);
+    _width = actual_width;
+    _height = actual_height;
+
+    // Center the window on screen
+    if (!_fullscreen)
+    {
+        const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+        int xpos = (mode->width - _width) / 2;
+        int ypos = (mode->height - _height) / 2;
+        glfwSetWindowPos(_window_handle, xpos, ypos);
+    }
+
+    // Initialize GLAD (or another GL loader) if we're using it
+    // This part would depend on our GL loading strategy
+    // For example, with GLAD, we would do:
+    //
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        LOG_DEBUG(CORE_LOG,
+                  "Window::_create_window_context()::FAILURE to initialize GLAD");
+        glfwDestroyWindow(_window_handle);
+        glfwTerminate();
+        return false;
+    } else {
+        LOG_DEBUG(CORE_LOG,
+                  "Window::_create_window_context()::SUCCESS to initialize GLAD");
+    }
+
+    return true;
+}
+#+end_src
+
+Next, set up window call backs,
+#+name: window-callbacks
+#+begin_src cpp :main no :tangle no
+void Window::_setup_callbacks() {
+    // Set up framebuffer size callback
+    LOG_DEBUG(CORE_LOG, "Window::_setup_callbacks()()");
+
+    glfwSetFramebufferSizeCallback(
+        _window_handle,
+        [](GLFWwindow* window, int width, int height) {
+            glViewport(0, 0, width, height);
+        });
+}
+#+end_src
+
+#+name: window-callbacks-original
+#+begin_src cpp :main no :tangle no
+
+void Window::_setup_callbacks() {
+    // Set up framebuffer size callback
+    LOG_DEBUG(CORE_LOG, "Window::_setup_callbacks()()");
+
+    glfwSetFramebufferSizeCallback(
+        _window_handle,
+        [](GLFWwindow* window, int width, int height) {
+            Window* win = static_cast<Window*>(glfwGetWindowUserPointer(window));
+            if (win) {
+                win->_width = width;
+                win->_height = height;
+
+                // Notify the application through resize callback if registered
+                if (win->_resize_callback) {
+                    win->_resize_callback(width, height);
+                }
+
+                // Adjust viewport to new dimensions
+                glViewport(0, 0, width, height);
+            }
+        });
+
+    // Set up cursor position callback
+    glfwSetCursorPosCallback(
+        _window_handle,
+        [](GLFWwindow* window, double x_pos, double y_pos) {
+            Window* win = static_cast<Window*>(glfwGetWindowUserPointer(window));
+            if (win && win->_mouse_move_callback) {
+                win->_mouse_move_callback(x_pos, y_pos);
+            }
+        });
+
+    // Set up mouse button callback
+    glfwSetMouseButtonCallback(
+        _window_handle,
+        [](GLFWwindow* window, int button, int action, int mods) {
+            Window* win = static_cast<Window*>(glfwGetWindowUserPointer(window));
+            if (win && win->_mouse_button_callback) {
+                win->_mouse_button_callback(button, action, mods);
+            }
+        });
+
+    // Set up key callback
+    glfwSetKeyCallback(
+        _window_handle,
+        [](GLFWwindow* window, int key, int scancode, int action, int mods) {
+            Window* win = static_cast<Window*>(glfwGetWindowUserPointer(window));
+            if (win && win->_key_callback) {
+                win->_key_callback(key, scancode, action, mods);
+            }
+
+            // Additional built-in keyboard shortcuts
+            if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+                glfwSetWindowShouldClose(window, GLFW_TRUE);
+            }
+
+            // F11 to toggle fullscreen (useful during our travels!)
+            if (key == GLFW_KEY_F11 && action == GLFW_PRESS) {
+                Window* win = static_cast<Window*>(glfwGetWindowUserPointer(window));
+                if (win) {
+                    win->toggle_full_screen();
+                }
+            }
+        });
+
+    // Window close callback
+    glfwSetWindowCloseCallback(
+        _window_handle,
+        [](GLFWwindow* window) {
+            Window* win = static_cast<Window*>(glfwGetWindowUserPointer(window));
+            if (win) {
+                win->_running = false;
+            }
+        });
+
+    // Error callback for window-specific errors
+    glfwSetWindowSizeCallback(
+        _window_handle,
+        [](GLFWwindow* window, int width, int height) {
+        // This callback is different from framebuffer size callback
+        // because on high-DPI displays, framebuffer size != window size
+            Window* win = static_cast<Window*>(glfwGetWindowUserPointer(window));
+            if (win) {
+                // Update internal state but don't change OpenGL viewport here
+                // as that's handled by the framebuffer size callback
+                win->_width = width;
+                win->_height = height;
+            }
+        });
+}
+
+#+end_src
+
+* Manage window state
+
+#+name: window-manage-state
+#+begin_src cpp :main no :noweb yes :tangle no
+bool Window::should_close() const {
+    return glfwWindowShouldClose(_window_handle);
+}
+
+void Window::close() {
+    if (_window_handle) {
+        glfwSetWindowShouldClose(_window_handle, GLFW_TRUE);
+        _running = false;
+    }
+}
+
+void Window::poll_events() {
+    if (_window_handle) {
+        // Poll events
+        glfwPollEvents();
+    }
+}
+
+void Window::swap_buffers()
+{
+    if (_window_handle) {
+        // Swap front and back buffers to display the rendered content
+        glfwSwapBuffers(_window_handle);
+    }
+}
+#+end_src
+
+#+name: window-manage-state-original-claude-implementation
+#+begin_src cpp :main no :noweb yes :tangle no
+bool Window::should_close() const {
+    return glfwWindowShouldClose(_window_handle);
+}
+
+void Window::close() {
+    if (_window_handle) {
+        glfwSetWindowShouldClose(_window_handle, GLFW_TRUE);
+        _running = false;
+    }
+}
+
+void Window::poll_events() {
+    // Process all pending events
+
+    // Check for OpenGL errors
+    GLenum error = glGetError();
+    if (error != GL_NO_ERROR) {
+        std::cerr << "OpenGL error: " << error << std::endl;
+
+        // Report error based on code
+        switch (error) {
+            case GL_INVALID_ENUM:
+                LOG_ERROR(CORE_LOG,
+                          " Unacceptable value specified for an enum.");
+            case GL_INVALID_VALUE:
+                LOG_ERROR(CORE_LOG,
+                          " A numeric argument is out of range.");
+            case GL_INVALID_OPERATION:
+                LOG_ERROR(CORE_LOG,
+                          " Operation is not allowed in the current state.");
+            case GL_INVALID_FRAMEBUFFER_OPERATION:
+                LOG_ERROR(CORE_LOG,
+                          " The framebuffer object is not complete.");
+            case GL_OUT_OF_MEMORY:
+                LOG_ERROR(CORE_LOG,
+                          " Not enough memory left to execute the command.");
+            default:
+                LOG_ERROR(CORE_LOG, "Unknown error code.");
+
+        }
+    }
+
+    // Update frame timing statistics if needed
+    // This could be useful for maintaining consistent animations
+    // of dynamic landscape elements like flowing water or moving clouds
+    static double last_time = glfwGetTime();
+    double current_time = glfwGetTime();
+    double delta_time = current_time - last_time;
+
+    // We could store delta_time for use in animation timing
+    // _delta_time = delta_time;
+
+    last_time = current_time;
+
+    // Update window title with FPS information if desired
+    // Useful during development to ensure our landscape visualizations
+    // maintain real-time performance
+    /*
+    static int frame_count = 0;
+    static double fps_timer = 0.0;
+
+    frame_count++;
+    fps_timer += delta_time;
+
+    if (fps_timer >= 1.0) {
+        double fps = frame_count / fps_timer;
+
+        std::string new_title =
+            _title + " | FPS: " + std::to_string(static_cast<int>(fps));
+        glfwSetWindowTitle(_window_handle, new_title.c_str());
+
+        frame_count = 0;
+        fps_timer = 0.0;
+    }
+    ,*/
+}
+
+void Window::swap_buffers()
+{
+    if (_window_handle) {
+        // Swap front and back buffers to display the rendered content
+        glfwSwapBuffers(_window_handle);
+    }
+}
+#+end_src
+
+* Window Property Getters
+Let's implement the Window Property Getters. These functions provide access to the window's properties, which will be essential when rendering our Himalayan landscape visualizations with the correct proportions and configurations.
+
+#+name: window-property-getters
+#+begin_src cpp :main no :tangle no
+
+// Note: Most of these getters are already defined inline in the header,
+// but I'll implement them here for completeness and consistency
+
+void Window::get_cursor_position(double& x, double& y) const
+{
+    if (_window_handle) {
+        // Retrieve the cursor position through GLFW
+        glfwGetCursorPos(_window_handle, &x, &y);
+    } else {
+        // If window handle is invalid, return (0,0)
+        x = 0.0;
+        y = 0.0;
+    }
+}
+
+bool Window::is_key_pressed(int key) const
+{
+    if (!_window_handle) {
+        std::cout << "Window::is_key_pressed(): Window has no handle!"
+                  << std::endl;
+        return false;
+    }
+
+    // Check if the specified key is currently pressed
+    return glfwGetKey(_window_handle, key) == GLFW_PRESS;
+}
+
+bool Window::is_mouse_button_pressed(int button) const
+{
+    if (!_window_handle) {
+        std::cout << "Window::is_mouse_button_pressed(): Window has no handle!"
+                  << std::endl;
+        return false;
+    }
+    // Check if the specified mouse button is currently pressed
+    return glfwGetMouseButton(_window_handle, button) == GLFW_PRESS;
+}
+#+end_src
+
+* Window Property Setters
+Now let's implement the Window Property Setters, which will allow us to modify our window's properties. These will be essential for creating a dynamic, adaptable interface for our Himalayan landscape visualizations.
+
+#+name: window-property-setters
+#+begin_src cpp :main no :tangle no
+
+void Window::resize(int width, int height)
+{
+    if (!_window_handle || width <= 0 || height <= 0) {
+        return;
+    }
+
+    // Store the new dimensions
+    _width = width;
+    _height = height;
+
+    // Resize the GLFW window
+    glfwSetWindowSize(_window_handle, width, height);
+
+    // Note: We don't need to update the viewport here as it will be
+    // handled by the framebuffer size callback we set up in _setup_callbacks()
+}
+
+void Window::set_title(const std::string& title)
+{
+    if (!_window_handle) {
+        return;
+    }
+
+    // Store the new title
+    _title = title;
+
+    // Update the window title
+    glfwSetWindowTitle(_window_handle, _title.c_str());
+}
+
+void Window::set_vsync(bool enabled)
+{
+    if (!_window_handle) {
+        return;
+    }
+
+    // Store the vsync setting
+    _vsync = enabled;
+
+    // Apply the vsync setting
+    // 0 = no vsync, 1 = vsync, -1 = adaptive vsync (if supported)
+    glfwSwapInterval(_vsync ? 1 : 0);
+}
+
+void Window::toggle_full_screen()
+{
+    if (!_window_handle) {
+        return;
+    }
+
+    // Toggle fullscreen state
+    _fullscreen = !_fullscreen;
+
+    if (_fullscreen) {
+        // Store current window position and size before going fullscreen
+        glfwGetWindowPos(_window_handle, &_windowed_pos_x, &_windowed_pos_y);
+        glfwGetWindowSize(_window_handle, &_windowed_width, &_windowed_height);
+
+        // Get the primary monitor
+        GLFWmonitor* primary = glfwGetPrimaryMonitor();
+        if (!primary) {
+            std::cerr << "Failed to get primary monitor, cannot enter fullscreen"
+                      << std::endl;
+            _fullscreen = false;
+            return;
+        }
+
+        // Get the monitor's current video mode
+        const GLFWvidmode* mode = glfwGetVideoMode(primary);
+        if (!mode) {
+            std::cerr << "Failed to get video mode, cannot enter fullscreen" << std::endl;
+            _fullscreen = false;
+            return;
+        }
+
+        // Switch to fullscreen
+        glfwSetWindowMonitor(_window_handle, primary, 0, 0,
+                             mode->width, mode->height, mode->refreshRate);
+
+        // Update internal dimensions
+        _width = mode->width;
+        _height = mode->height;
+    }
+    else {
+        // Return to windowed mode with previous dimensions and position
+        glfwSetWindowMonitor(_window_handle, nullptr,
+                             _windowed_pos_x, _windowed_pos_y,
+                             _windowed_width, _windowed_height, GLFW_DONT_CARE);
+
+        // Update internal dimensions
+        _width = _windowed_width;
+        _height = _windowed_height;
+    }
+
+    // If there's a resize callback registered, notify it about the new dimensions
+    if (_resize_callback) {
+        _resize_callback(_width, _height);
+    }
+
+    // Since we changed window size, we need to update the viewport
+    glViewport(0, 0, _width, _height);
+}
+#+end_src
+
+There are a few things to note about the implementation:
+
+1. I've added protected member variables =_windowed_pos_x=, =_windowed_pos_y=, =_windowed_width=, and =_windowed_height= that would need to be adde
+
+* Input & Callback Management
+Let's implement the Input & Callback Management methods from the Window class header. These methods will be crucial for handling user interaction with our Himalayan landscape visualizations.
+#+name: window-inputs-callbacks
+#+begin_src cpp :main no :tangle no
+void Window::set_resize_callback(std::function<void(int, int)> callback)
+{
+    _resize_callback = callback;
+}
+
+void Window::set_mouse_move_callback(std::function<void(double, double)> callback)
+{
+    _mouse_move_callback = callback;
+}
+
+void Window::set_mouse_button_callback(std::function<void(int, int, int)> callback)
+{
+    _mouse_button_callback = callback;
+}
+
+void Window::set_key_callback(std::function<void(int, int, int, int)> callback)
+{
+    _key_callback = callback;
+}
+
+void Window::set_cursor_position(double x, double y)
+{
+    if (_window_handle) {
+        glfwSetCursorPos(_window_handle, x, y);
+    }
+}
+
+void Window::show_cursor(bool visible)
+{
+    if (_window_handle) {
+        glfwSetInputMode(_window_handle, GLFW_CURSOR,
+                         visible ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
+    }
+}
+
+#+end_src
+
+These implementations provide several important capabilities for our Himalayan landscape visualization framework:
+
+1. /Event Registration/: The =set_*_callback= methods allow higher-level components to register handlers for key events, which will be essential for interactive features like camera navigation through mountain landscapes or adjusting visualization parameters.
+
+2. /Cursor Management/: The cursor-related methods will allow us to create immersive experiences where the cursor can be hidden for first-person navigation or precisely positioned for detailed work on landscape features.
+
+3. /Input State Checking/: The =is_*_pressed= methods provide a way to poll the current state of input devices, which is useful for continuous actions like camera movement while a key is held down.
+
+All of these methods include checks to ensure the window handle is valid before attempting operations, providing robustness to our implementation. This input handling framework will allow us to create intuitive interfaces for exploring our virtual Himalayan landscapes, from simple mouse-driven camera rotation to more complex interactions like adjusting time-of-day lighting or weather effects.
+
+Now our Window class has a complete set of methods for handling user input, which we can use to create interactive simulations of Himalayan landscapes.
+
+* Summary
+We can put together a source code file,
+#+name: window-source
+#+header: :tangle (concat (org-entry-get nil "SRCLOC" t) "/Landscapes/source/core/window.cpp")
+#+begin_src cpp :main no :noweb yes :tangle ../../source/core/window.cpp
+#include "core/window.hpp"
+
+<<window-construct>>
+
+<<window-destruct>>
+
+<<window-initialize>>
+
+<<window-initialize-glfw>>
+
+<<window-create-context>>
+
+<<window-callbacks>>
+
+<<window-manage-state>>
+
+<<window-property-getters>>
+
+<<window-property-setters>>
+
+<<window-inputs-callbacks>>
+#+end_src
+
+#+RESULTS: window-source
+
+* What other methods may we include?
+Based on our Himalayan landscape visualization goals, here are additional methods we might want to add to our Window class:
+
+** Display Management
+- =set_background_color(float r, float g, float b, float a)=
+- =enable_multi_sampling(bool enable)=
+- =set_monitor(int monitor_index)=
+- =capture_screenshot(const std::string& filename)=
+
+** Time & Animation
+- =get_time() const=
+- =get_delta_time() const=
+- =set_frame_rate_limit(int fps)=
+- =get_current_fps() const=
+
+** Extended Input
+- =add_joystick_support(int joystick_id)=
+- =is_joystick_connected(int joystick_id) const=
+- =set_scroll_callback(std::function<void(double, double)> callback)=
+- =set_drag_and_drop_callback(std::function<void(const std::vector<std::string>&)> callback)=
+- =register_key_binding(int key, std::function<void()> action)=
+
+** Window Management
+- =center_on_screen()=
+- =minimize()=
+- =maximize()=
+- =restore()=
+- =is_minimized() const=
+- =is_maximized() const=
+- =is_focused() const=
+- =request_focus()=
+
+** Context Management
+- =make_context_current()=
+- =release_context()=
+- =is_context_current() const=
+
+** Resolution & Display Scaling
+- =get_content_scale(float& x_scale, float& y_scale) const=
+- =get_monitor_physical_size(int& width_mm, int& height_mm) const=
+- =set_resolution(int width, int height, int refresh_rate)=
+- =get_available_resolutions() const=
+
+** Extended Window Information
+- =get_position(int& x, int& y) const=
+- =set_position(int x, int y)=
+- =get_frame_size(int& left, int& top, int& right, int& bottom) const=
+- =get_monitor_name() const=
+
+These methods would enhance our framework's capabilities for creating rich, interactive visualizations of Himalayan landscapes, allowing us to handle different display configurations, improve animation timing, support additional input methods, and manage window state more effectively.

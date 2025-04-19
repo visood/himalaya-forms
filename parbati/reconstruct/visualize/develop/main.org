@@ -1,0 +1,59 @@
+#+PROPERTY: SRCLOC /Users/vishalsoodmuchu/work/learn/scapes/project/himalaya-forms/parbati/src/cpp
+
+#+title: Main
+We will establish the core application loop that initializes our visualization-framework, sets up an empty terrain scene, and maintains the render loop. We will do this in the ~main~ program in which we will,
+1. Initialize configuration
+2. Set up core systems
+3. Enter the main loop, which:
+   - Processes input
+   - Updates the scene
+   - Renders the frame
+   - Handles UI
+   - Swaps buffers to display the result
+4. Clean up resources
+
+#+name: main-empty-scene
+#+header: :tangle (concat (org-entry-get nil "SRCLOC" t) "/Landscapes/source/apps/main.cpp")
+#+begin_src cpp :main no
+#include "core/application.hpp"
+
+int main(int argc, char* argv[]) {
+    parbati::Logger::get_instance()
+        .initialize("logs",                    // log directory
+                    parbati::LogLevel::Debug,  // console log level
+                    parbati::LogLevel::Trace,  // file log level
+                    10 * 1024 * 1024,          // 10MB max file size
+                    5);                        // keep 5 rotating files
+
+    LOG_INFO(CORE_LOG, "Himalayan Landscapes application initializing...");
+
+    try {
+        auto config = std::make_shared<SceneConfig>();
+
+        if (argc > 1) {
+            LOG_DEBUG(CORE_LOG, "Parse command line...", *argv);
+            config->parse_command_line(argc, argv);
+        } else {
+            LOG_ERROR(CORE_LOG, "No arguments");
+            config->load_from_file("config/default_scene.yaml");
+        }
+
+        LOG_DEBUG(CORE_LOG, "Construct and initialize the application...");
+        Application app(config);
+        app.initialize();
+
+        LOG_DEBUG(CORE_LOG, "App initialized --- ready to run...");
+
+        int result = app.run();
+        LOG_INFO(CORE_LOG, "Application terminated normally: code, ", result);
+        return result;
+
+    } catch (const std::exception& e) {
+        LOG_ERROR(CORE_LOG, "Fatal initialization error: code, ", -1);
+        LOG_ERROR(CORE_LOG, "Exception: ", e.what());
+        return -1;
+    }
+}
+#+end_src
+
+We have delegated the actual parameterization and running of the application to a combination of classes that implement the app's configuration and execution. Let us continue by stating how we want to configure our application,

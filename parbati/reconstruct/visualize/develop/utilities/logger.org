@@ -1,0 +1,352 @@
+#+PROPERTY: SRCLOC /Users/vishalsoodmuchu/work/learn/scapes/project/himalaya-forms/parbati/src/cpp
+
+#+title: Logging Utilities
+
+We will use -spdlog=, which provides us,
+
+1. *Header-only option* - Can be used without build complexity
+2. *Performance* - Extremely fast, designed for minimal overhead
+3. *Modern C++ design* - Works well with C++20 that we're already using
+4. *Formatting* - Rich formatting options including fmt library integration
+5. *Multiple sinks* - Console, file, rotating files, daily files
+6. *Cross-platform* - Works on all major platforms
+7. *Widespread adoption* - Well-maintained with a large community
+
+* Define a logger
+** Log level
+
+Let us define a custom log-level,
+#+name: define-log-level
+#+begin_src cpp :main no :noweb yes :tangle no
+enum class LogLevel {
+    Trace,
+    Debug,
+    Info,
+    Warning,
+    Error,
+    Critical,
+    Off
+};
+#+end_src
+
+#+RESULTS: define-log-level
+
+** =class Logger=
+Our =class Logger= will be a wrapper around =spdlog::logger=,
+#+name: define-class-logger
+#+begin_src cpp :main no :noweb yes :tangle no
+/**
+ ,* @brief Main logger class providing a wrapper around spdlog
+ ,*
+ ,* This class manages logging for different subsystems of the Himalayan
+ ,* landscape visualization project, allowing for categorized and leveled logging.
+ ,*/
+class Logger {
+public:
+    /**
+     ,* @brief Get the singleton instance of the logger
+     ,* @return Reference to the logger instance
+     ,*/
+    static Logger& get_instance();
+
+    /**
+     ,* @brief Initialize the logging system
+     ,* @param logDir Directory to store log files
+     ,* @param consoleLevel Minimum level for console output
+     ,* @param fileLevel Minimum level for file output
+     ,* @param maxFileSize Maximum size per log file in bytes
+     ,* @param maxFiles Maximum number of rotating files
+     ,*/
+    void initialize(
+        const std::string& logDir = "logs",
+        LogLevel consoleLevel = LogLevel::Info, LogLevel fileLevel = LogLevel::Debug,
+        size_t maxFileSize = 5 * 1024 * 1024, size_t maxFiles = 3);
+
+    /**
+     ,* @brief Get or create a logger for a specific subsystem
+     ,* @param name Name of the subsystem (e.g., "terrain", "renderer", "water")
+     ,* @return Logger for the specified subsystem
+     ,*/
+    std::shared_ptr<spdlog::logger> get_logger(const std::string& name);
+
+    /**
+     ,* @brief Set the global console logging level
+     ,* @param level Minimum level to display in console
+     ,*/
+    void set_console_level(LogLevel level);
+
+    /**
+     ,* @brief Set the global file logging level
+     ,* @param level Minimum level to write to log files
+     ,*/
+    void set_file_level(LogLevel level);
+
+    /**
+     ,* @brief Set logging level for a specific subsystem
+     ,* @param name Subsystem name
+     ,* @param level Log level to set
+     ,*/
+    void set_logger_level(const std::string& name, LogLevel level);
+
+    /**
+     ,* @brief Convert LogLevel enum to spdlog level
+     ,* @param level Our LogLevel enum
+     ,* @return Corresponding spdlog level
+     ,*/
+    static spdlog::level::level_enum to_spd_log_level(LogLevel level);
+
+    /**
+     ,* @brief Shutdown logging system properly
+     ,*/
+    void shutdown();
+
+private:
+    Logger() = default;
+    ~Logger();
+
+    // Disable copy/move
+    Logger(const Logger&) = delete;
+    Logger& operator=(const Logger&) = delete;
+    Logger(Logger&&) = delete;
+    Logger& operator=(Logger&&) = delete;
+
+    bool initialized_ = false;
+    std::shared_ptr<spdlog::sinks::stdout_color_sink_mt> _console_sink;
+    std::shared_ptr<spdlog::sinks::rotating_file_sink_mt> _file_sink;
+    std::unordered_map<std::string, std::shared_ptr<spdlog::logger>> _loggers;
+}; // class Logger
+#+end_src
+
+#+RESULTS: define-class-logger
+
+** Convenience Macros
+We can make our coding convenient with some macros,
+#+name: define-convenience-macros
+#+begin_src cpp :main no :noweb no :tangle no
+// Convenience macros for logging
+#define LOG_TRACE(logger, ...)    logger->trace(__VA_ARGS__)
+#define LOG_DEBUG(logger, ...)    logger->debug(__VA_ARGS__)
+#define LOG_INFO(logger, ...)     logger->info(__VA_ARGS__)
+#define LOG_WARN(logger, ...)     logger->warn(__VA_ARGS__)
+#define LOG_ERROR(logger, ...)    logger->error(__VA_ARGS__)
+#define LOG_CRITICAL(logger, ...) logger->critical(__VA_ARGS__)
+
+// Convenience macros for specific subsystems
+#define CORE_LOG        parbati::Logger::get_instance().get_logger("core")
+#define TERRAIN_LOG     parbati::Logger::get_instance().get_logger("terrain")
+#define WATER_LOG       parbati::Logger::get_instance().get_logger("water")
+#define SKY_LOG         parbati::Logger::get_instance().get_logger("sky")
+#define VEGETATION_LOG  parbati::Logger::get_instance().get_logger("vegetation")
+#define RENDERER_LOG    parbati::Logger::get_instance().get_logger("renderer")
+#define SHADER_LOG      parbati::Logger::get_instance().get_logger("shader")
+#define RESOURCE_LOG    parbati::Logger::get_instance().get_logger("resource")
+#define UI_LOG          parbati::Logger::get_instance().get_logger("ui")
+#define INPUT_LOG       parbati::Logger::get_instance().get_logger("input")
+#+end_src
+
+#+RESULTS: define-convenience-macros
+
+** Summary
+Finally, we can assemble all the pieces together,
+#+name: define-logging
+#+header: :tangle (concat (org-entry-get nil "SRCLOC" t) "/Landscapes/include/utilities/logger.hpp")
+#+begin_src cpp :main no :noweb yes
+#pragma once
+
+#include <string>
+#include <memory>
+#include <unordered_map>
+#include <filesystem>
+#include <iostream>
+
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+#include "spdlog/sinks/rotating_file_sink.h"
+
+namespace parbati {
+<<define-log-level>>
+
+<<define-class-logger>>
+
+<<define-convenience-macros>>
+} // namespace parbati
+#+end_src
+
+#+RESULTS: define-logging
+
+* Construct, initialize, destruct
+#+name: logger-construct-initialize-destruct
+#+begin_src cpp :main no :noweb yes :tangle no
+// source/utilities/logger.cpp
+
+Logger::~Logger() {
+    if (initialized_) {shutdown();}
+}
+
+Logger& Logger::get_instance() {
+    static Logger instance;
+    return instance;
+}
+
+void Logger::initialize(
+    const std::string& logDir,
+    LogLevel consoleLevel, LogLevel fileLevel,
+    size_t maxFileSize, size_t maxFiles)
+{
+    if (initialized_) {return;}
+
+    try {
+        // Create log directory if it doesn't exist
+        std::filesystem::create_directories(logDir);
+
+        // Create sinks
+        _console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+        _console_sink->set_level(to_spd_log_level(consoleLevel));
+
+        std::string logFilePath = logDir + "/himalayan_landscapes.log";
+        _file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
+            logFilePath, maxFileSize, maxFiles);
+        _file_sink->set_level(to_spd_log_level(fileLevel));
+
+        // Create default logger
+        auto defaultLogger = std::make_shared<spdlog::logger>("default",
+            spdlog::sinks_init_list{_console_sink, _file_sink});
+        defaultLogger->set_level(spdlog::level::trace); // Accept all messages
+
+        // Set as default and register
+        spdlog::set_default_logger(defaultLogger);
+        _loggers["default"] = defaultLogger;
+
+        // Configure pattern
+        spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%n] [%^%l%$] [%s:%#] %v");
+
+        // Set flush policy
+        spdlog::flush_every(std::chrono::seconds(3));
+
+        initialized_ = true;
+
+        // Log initialization success
+        LOG_INFO(get_logger("core"), "Logging system initialized");
+    }
+    catch (const spdlog::spdlog_ex& ex) {
+        std::cerr << "Logger initialization failed: " << ex.what() << std::endl;
+    }
+}
+#+end_src
+
+#+RESULTS: logger-construct-initialize-destruct
+
+
+#+name: logger-get-logger
+#+begin_src cpp :main no :noweb yes :tangle no
+std::shared_ptr<spdlog::logger> Logger::get_logger(const std::string& name) {
+    // Return existing logger if available
+    auto it = _loggers.find(name);
+    if (it != _loggers.end()) {return it->second;}
+
+    // Create new logger if system is initialized
+    if (initialized_) {
+        try {
+            auto logger =
+                std::make_shared<spdlog::logger>(
+                    name, spdlog::sinks_init_list{_console_sink, _file_sink});
+            logger->set_level(spdlog::level::trace);
+            _loggers[name] = logger;
+
+            LOG_DEBUG(get_logger("core"), "Created logger: {}", name);
+            return logger;
+        }
+        catch (const spdlog::spdlog_ex& ex) {
+            LOG_ERROR(get_logger("core"), "Failed to create logger {}: {}", name, ex.what());
+        }
+    }
+
+    // Fallback to default logger
+    return spdlog::default_logger();
+}
+#+end_src
+
+#+RESULTS: logger-get-logger
+
+#+name: logger-set-levels
+#+begin_src cpp :main no :noweb yes :tangle no
+void Logger::set_console_level(LogLevel level) {
+    if (initialized_ && _console_sink) {
+        _console_sink->set_level(to_spd_log_level(level));
+        LOG_DEBUG(get_logger("core"), "Console log level set to {}",
+                 static_cast<int>(level));
+    }
+}
+
+void Logger::set_file_level(LogLevel level) {
+    if (initialized_ && _file_sink) {
+        _file_sink->set_level(to_spd_log_level(level));
+        LOG_DEBUG(get_logger("core"), "File log level set to {}",
+                 static_cast<int>(level));
+    }
+}
+
+void Logger::set_logger_level(const std::string& name, LogLevel level) {
+    auto logger = get_logger(name);
+    if (logger) {
+        logger->set_level(to_spd_log_level(level));
+        LOG_DEBUG(get_logger("core"), "Logger '{}' level set to {}",
+                 name, static_cast<int>(level));
+    }
+}
+
+spdlog::level::level_enum Logger::to_spd_log_level(LogLevel level) {
+    switch (level) {
+        case LogLevel::Trace:    return spdlog::level::trace;
+        case LogLevel::Debug:    return spdlog::level::debug;
+        case LogLevel::Info:     return spdlog::level::info;
+        case LogLevel::Warning:  return spdlog::level::warn;
+        case LogLevel::Error:    return spdlog::level::err;
+        case LogLevel::Critical: return spdlog::level::critical;
+        case LogLevel::Off:      return spdlog::level::off;
+        default:                 return spdlog::level::info;
+    }
+}
+#+end_src
+
+#+RESULTS: logger-set-levels
+
+* Shutdown
+#+name: logger-shutdown
+#+begin_src cpp :main no :noweb yes :tangle no
+void Logger::shutdown() {
+    if (initialized_) {
+        // Log shutdown
+        LOG_INFO(get_logger("core"), "Logging system shutting down");
+
+        // Clear loggers
+        _loggers.clear();
+
+        // Shutdown spdlog
+        spdlog::shutdown();
+
+        initialized_ = false;
+    }
+}
+#+end_src
+
+#+RESULTS: logger-shutdown
+
+* Summary
+#+name: logger-source
+#+header: :tangle (concat (org-entry-get nil "SRCLOC" t) "/Landscapes/source/utilities/logger.cpp")
+#+begin_src cpp :main no :noweb yes
+#include "utilities/logger.hpp"
+
+namespace parbati {
+<<logger-construct-initialize-destruct>>
+
+<<logger-get-logger>>
+
+<<logger-set-levels>>
+
+<<logger-shutdown>>
+} // namespace parbati
+#+end_src
+
+#+RESULTS: logger-source

@@ -1,0 +1,417 @@
+#+PROPERTY: SRCLOC /Users/vishalsoodmuchu/work/learn/scapes/project/himalaya-forms/parbati/src/cpp
+
+#+title: CMake to compile
+
+
+We will use ~cmake~ for building C++ applications, and here develop a template that we can use to build particular targets.
+
+#+name: cmake-project
+#+begin_src cmake :tangle no
+cmake_minimum_required(VERSION 3.12)
+project(HimalayanLandscapes VERSION 0.1.0)
+#+end_src
+
+* C++ and CMake standard
+#+name: cmake-standards
+#+begin_src cmake :tangle no
+# Use C++20 for modern features
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+#+end_src
+
+* Important directories
+#+name: cmake-important-directories
+#+begin_src cpp :tangle no
+# Define important directories
+set(ASSETS_DIR  ${CMAKE_SOURCE_DIR}/assets)
+set(SHADERS_DIR ${CMAKE_SOURCE_DIR}/shaders)
+set(EXTERN_DIR  ${CMAKE_SOURCE_DIR}/extern)
+#+end_src
+
+* Outputs
+#+name: cmake-outputs
+#+begin_src cpp :tangle no
+# Output directories
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+#+end_src
+
+* Compile definitions
+We will need to define and set definition flags for compilation,
+#+name: cmake-compile-definitions
+#+begin_src cmake :tangle no
+# Add your existing compile definitions
+add_compile_definitions(
+    GLM_FORCE_PURE=1
+    GLM_FORCE_CXX20=1
+    GLM_FORCE_CTOR_INIT=1
+    GLM_FORCE_EXPLICIT_CTOR=1
+    GLM_ENABLE_EXPERIMENTAL=1
+    GLM_FORCE_INLINE=1
+    GLM_FORCE_SILENT_WARNINGS=1
+)
+#+end_src
+
+* Find required packages
+We will use external packages for our applications,
+#+name: cmake-find-packages
+#+begin_src cmake :tangle no
+find_package(OpenGL REQUIRED)
+find_package(glfw3 REQUIRED)
+find_package(spdlog REQUIRED)
+#+end_src
+
+* External packages
+We will need to tell the compiler locations of external packages,
+** YAML
+#+name: cmake-set-yaml
+#+begin_src cmake :tangle no
+# Homebrew handling for yaml-cpp
+if(APPLE)
+    # Determine Homebrew prefix (different on Intel vs Apple Silicon)
+    if(EXISTS "/opt/homebrew/opt/yaml-cpp")
+        # Apple Silicon Mac
+        set(HOMEBREW_PREFIX "/opt/homebrew")
+    else()
+        # Intel Mac
+        set(HOMEBREW_PREFIX "/usr/local")
+    endif()
+
+    # Explicitly set yaml-cpp paths
+    set(YAML_CPP_INCLUDE_DIR "${HOMEBREW_PREFIX}/include")
+    set(YAML_CPP_LIBRARY "${HOMEBREW_PREFIX}/lib/libyaml-cpp.dylib")
+
+    message(STATUS "Using Homebrew yaml-cpp at: ${HOMEBREW_PREFIX}")
+    message(STATUS "yaml-cpp include: ${YAML_CPP_INCLUDE_DIR}")
+    message(STATUS "yaml-cpp library: ${YAML_CPP_LIBRARY}")
+else()
+    # Non-macOS systems
+    find_package(yaml-cpp REQUIRED)
+endif()
+#+end_src
+
+** GLM
+We have ~GLM~ in,
+#+name: cmake-set-glm
+#+begin_src cmake
+set(GLM_CPP_INCLUDE_DIR ${EXTERN_DIR})
+#+end_src
+
+** GLAD
+We have ~GLAD~ in,
+#+name: cmake-set-glad
+#+begin_src cmake
+# GLAD loader
+set(GLAD_SOURCES ${EXTERN_DIR}/glad/glad.c)
+#+end_src
+
+** ImGui
+#+name: cmake-set-imgui
+#+begin_src cmake
+# ImGui includes and sources
+set(IMGUI_DIR ${EXTERN_DIR}/imgui)
+set(IMGUI_SOURCES
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_demo.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+)
+#+end_src
+
+* Includes
+We will ~include~ several headers in our compilations,
+#+name: cmake-includes
+#+begin_src cmake :tangle no
+# Include directories
+include_directories(
+    ${CMAKE_SOURCE_DIR}/include
+    ${EXTERN_DIR}
+    ${YAML_CPP_INCLUDE_DIR}
+    ${EXTERN_DIR}/imgui
+)
+#+end_src
+
+* Configure header
+#+name: cmake-configure-header
+#+begin_src cmake :tangle no
+# Generate a header with path definitions
+configure_file(
+    ${CMAKE_SOURCE_DIR}/include/path_config.hpp.in
+    ${CMAKE_BINARY_DIR}/include/path_config.hpp
+)
+include_directories(${CMAKE_BINARY_DIR}/include)
+#+end_src
+
+This particular command is trying to generate a C++ header file that would contain path definitions, so our application can locate assets, shaders, and other resources at runtime regardless of how the project is built or installed. So that =cmake= can generate this header we will need a template,
+
+#+header: :tangle (concat (org-entry-get nil "SRCLOC" t) "/Landscapes/include/path_config.hpp.in")
+#+begin_src cpp :main no :noweb yes
+#pragma once
+
+namespace Paths {
+    constexpr const char* ASSETS_DIR = "@ASSETS_DIR@";
+    constexpr const char* SHADERS_DIR = "@SHADERS_DIR@";
+    constexpr const char* CONFIG_DIR = "${CMAKE_BINARY_DIR}/config";
+}
+#+end_src
+
+* Core sources
+#+name: cmake-core-sources
+#+begin_src cmake :tangle no
+# Define source files for the core framework
+set(CORE_SOURCES
+    source/core/application.cpp
+    source/core/window.cpp
+    source/core/scene_config.cpp
+)
+#+end_src
+
+* Landscape sources
+#+name: cmake-landscape-sources
+#+begin_src cmake :tangle no
+# Define source files for landscape components
+set(LANDSCAPE_SOURCES
+    source/landscape/terrain.cpp
+)
+#+end_src
+
+* Renderer sources
+#+name: cmake-renderer-sources
+#+begin_src cmake :tangle no
+# Define source files for landscape components
+set(RENDERER_SOURCES
+    source/renderers/terrain_renderer.cpp
+)
+#+end_src
+
+* Utility sources
+#+name: cmake-utility-sources
+#+begin_src cmake :tangle no
+# Define source files for common utilities
+set(UTILITY_SOURCES
+    source/utilities/logger.cpp
+)
+#+end_src
+
+* App sources
+#+name: cmake-app-sources
+#+begin_src cmake :tangle no
+# Define source files for common utilities
+set(APP_SOURCES
+    source/apps/main.cpp
+)
+#+end_src
+
+* All sources
+#+name: cmake-all-sources
+#+begin_src cmake :tangle no
+# Define source files for common utilities
+# Combine all sources
+set(ALL_SOURCES
+    ${CORE_SOURCES}
+    ${UTILITY_SOURCES}
+    ${APP_SOURCES}
+    ${GLAD_SOURCES}
+    ${IMGUI_SOURCES}
+)
+#+end_src
+
+* Executable
+#+name: cmake-define-executable
+#+begin_src cmake
+# Create executable
+add_executable(HimalayanLandscapes ${ALL_SOURCES})
+#+end_src
+
+* Link libraries
+#+name: cmake-link-libraries
+#+begin_src cmake
+# Link libraries - use the explicit path for yaml-cpp on macOS
+if(APPLE)
+    target_link_libraries(HimalayanLandscapes
+        PRIVATE
+        OpenGL::GL
+        glfw
+        ${YAML_CPP_LIBRARY}
+        spdlog::spdlog
+        "-framework Cocoa"
+        "-framework IOKit"
+        "-framework CoreVideo"
+    )
+else()
+    target_link_libraries(HimalayanLandscapes
+        PRIVATE
+        OpenGL::GL
+        glfw
+        yaml-cpp
+    )
+endif()
+#+end_src
+
+* Post-build file copying
+#+name: cmake-copy-assets
+#+begin_src cpp :tangle no
+# Copy assets and shaders to build directory
+add_custom_command(
+    TARGET HimalayanLandscapes POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/assets
+    ${CMAKE_BINARY_DIR}/assets
+)
+
+add_custom_command(
+    TARGET HimalayanLandscapes POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/shaders
+    ${CMAKE_BINARY_DIR}/shaders
+)
+
+add_custom_command(
+    TARGET HimalayanLandscapes POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/terrain_data
+    ${CMAKE_BINARY_DIR}/terrain_data
+)
+# Copy default configuration
+add_custom_command(
+    TARGET HimalayanLandscapes POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+    ${CMAKE_SOURCE_DIR}/config/default_scene.yaml
+    ${CMAKE_BINARY_DIR}/config/default_scene.yaml
+)
+
+#+end_src
+
+* Install targets
+#+name: cmake-install-targets
+#+begin_src cpp :tangle no
+# Install targets
+install(
+    TARGETS HimalayanLandscapes
+    RUNTIME DESTINATION bin
+)
+
+install(
+    DIRECTORY ${CMAKE_SOURCE_DIR}/assets
+    DESTINATION share/HimalayanLandscapes
+)
+
+install(
+    DIRECTORY ${CMAKE_SOURCE_DIR}/shaders
+    DESTINATION share/HimalayanLandscapes
+)
+
+install(
+    DIRECTORY ${CMAKE_SOURCE_DIR}/config
+    DESTINATION share/HimalayanLandscapes
+)
+#+end_src
+
+* Build documentation
+Add option for building documentation
+#+name: cmake-build-docs
+#+begin_src cpp :tangle no
+option(BUILD_DOCS "Build documentation" OFF)
+if(BUILD_DOCS)
+    find_package(Doxygen)
+    if(DOXYGEN_FOUND)
+        # Configure Doxygen file
+        configure_file(
+            ${CMAKE_SOURCE_DIR}/docs/Doxyfile.in
+            ${CMAKE_BINARY_DIR}/Doxyfile @ONLY)
+        # Add custom target for documentation
+        add_custom_target(
+            docs
+            ${DOXYGEN_EXECUTABLE} ${CMAKE_BINARY_DIR}/Doxyfile
+            WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+            COMMENT "Generating API documentation with Doxygen"
+            VERBATIM
+        )
+    endif()
+endif()
+#+end_src
+
+* Build tests
+#+name: cmake-build-tests
+#+begin_src cpp :tangle no
+
+# Add option for building tests
+option(BUILD_TESTS "Build tests" OFF)
+if(BUILD_TESTS)
+    # Enable testing
+    enable_testing()
+    # Add tests subdirectory
+    add_subdirectory(tests)
+endif()
+#+end_src
+
+* Messaging
+#+name: cmake-messages
+#+begin_src cpp :tangle no
+# Print configuration summary
+message(STATUS "Configuration Summary:")
+message(STATUS "  C++ Standard: ${CMAKE_CXX_STANDARD}")
+message(STATUS "  Build Type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "  Install Prefix: ${CMAKE_INSTALL_PREFIX}")
+message(STATUS "  Assets Directory: ${ASSETS_DIR}")
+message(STATUS "  Shaders Directory: ${SHADERS_DIR}")
+message(STATUS "  Extern Directory: ${EXTERN_DIR}")
+message(STATUS "  Build Docs: ${BUILD_DOCS}")
+message(STATUS "  Build Tests: ${BUILD_TESTS}")
+#+end_src
+* CMakeLists.txt
+#+header: :tangle (concat (org-entry-get nil "SRCLOC" t) "/Landscapes/CMakeLists.txt")
+#+begin_src cmake :noweb yes
+<<cmake-project>>
+
+<<cmake-important-directories>>
+
+<<cmake-standards>>
+
+<<cmake-compile-definitions>>
+
+<<cmake-find-packages>>
+
+<<cmake-set-yaml>>
+
+<<cmake-set-glm>>
+
+<<cmake-set-glad>>
+
+<<cmake-set-imgui>>
+
+<<cmake-includes>>
+
+<<cmake-configure-header>>
+
+<<cmake-core-sources>>
+
+<<cmake-landscape-sources>>
+
+<<cmake-renderer-sources>>
+
+<<cmake-utility-sources>>
+
+<<cmake-app-sources>>
+
+<<cmake-all-sources>>
+
+<<cmake-define-executable>>
+
+<<cmake-link-libraries>>
+
+<<cmake-copy-assets>>
+
+<<cmake-install-targets>>
+
+<<cmake-build-docs>>
+
+<<cmake-build-tests>>
+
+<<cmake-messaging>>
+#+end_src

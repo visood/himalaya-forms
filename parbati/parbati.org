@@ -1,6 +1,136 @@
 #+title: PARBATI
-#+subtitle: Programs and Arts for recording the Beauty of Apline Terrain's Impressions
+#+subtitle: Programs and Arts for Recording the Beauty of Apline Terrain's Impressions
 
 Here we develop computational tools, mostly in ~Python~.
+
+* Setup and development guidelines
+
+We will organize the project along a hierarchy of topics,
+#+name: project-structure
+#+begin_src
+parbati/
+├── parbati.org                   # Overview and introduction
+├── explore/                      # Explore Earth systems
+│   ├── explore.org               # Overview and introduction
+│   ├── places/
+│   │   └── places.org
+│   └── geography/
+│       ├── geography.org
+│       ├── rivers-and-valleys/
+│       │   └── river-valleys.org
+│       ├── biomes/
+│       │   └── biomes.org
+│       └── geology/
+│           └── geology.org
+├── observe/                      # Observe of Earth systems
+│   ├── observe.org               # Overview and introduction
+│   ├── geometrology/
+│   │   ├── earth-measurement.org # Overview and introduction
+│   │   └── optical/
+│   │       └── optical.org       # Overview and introduction
+│   ├── meteorology/
+│   │   └── weather.org           # Overview and introduction
+│   └── geography/
+│       ├── rivers-and-valleys/
+│       │   └── river-valleys.org
+│       ├── biomes/
+│       │   └── biomes.org
+│       └── geology/
+│           └── geology.org
+├── reconstruct/                  # Reconstruct Earth systems
+│   ├── reconstruct.org           # Overview and introduction
+│   ├── visualize/                # Reconstruct visual elements
+│   │   ├── earth-visualization.org # Overview and introduction
+│   │   └── terrain/              # Terrain visualization
+│   │       ├── terrain.org       # Visualize and reconstruct terrains
+│   │       └── .build/           # Directory for tangled C++ files
+│   └── sonify/                   # Reconstruct acoustic elements
+│       ├── earth-sounds.org
+│       ├── rivers-and-valleys/
+│       │   └── river-valleys.org # Sounds of rivers
+│       ├── biomes/
+│       │   └── biomes.org        # Birds, Animals, and Forests
+│       └── geology/
+│           └── geology.org       # Roars of Earth movement
+├── simulate/                     # Models, Arts and Games for Earth systems
+│   ├── earthsim.org              # Overview and introduction
+│   └── models/                   # Various simulation models
+├── src/                          # Output directory for tangled source code
+│   ├── python/                   # Python package source
+│   │   └── parbati/              # The actual Python package
+│   │       ├── __init__.py       # (tangled from various .org files)
+│   │       ├── explore/
+│   │       ├── observe/
+│   │       ├── reconstruct/
+│   │       └── simulate/
+│   ├── cpp/                      # C++ source code
+│   │   └── terrain/              # Terrain visualization code
+│   │       ├── include/          # Header files
+│   │       ├── src/              # Source files
+│   │       └── CMakeLists.txt    # Build configuration
+│   └── julia/                    # Julia modules
+│       └── Parbati.jl
+├── notebooks/                    # Jupyter notebooks that use the package
+├── data/                         # Data collected during travels
+│   ├── field/                    # Raw measurements and observations
+│   ├── gis/                      # Geospatial datasets
+│   ├── imagery/                  # Photographs and satellite imagery
+│   └── audio/                    # Sound recordings
+├── docs/                         # Generated documentation and travelogue
+│   ├── journal/                  # Our travelogue entries in Org format
+│   └── generated/                # Website or PDF outputs
+├── assets/                       # Static assets for documentation
+│   ├── images/
+│   └── templates/
+├── build/                        # Build artifacts (gitignored)
+│   ├── python/                   # Built Python packages
+│   ├── cpp/                      # Compiled C++ binaries
+│   └── docs/                     # Generated documentation
+├── tests/                        # Tests for all components
+└── scripts/                      # Utility scripts
+    ├── setup/                    # Environment setup scripts
+    ├── tangle/                   # Helpers for tangling code from .org files
+    └── build/                    # Build scripts for various languages
+#+end_src
+
+To develop, follow these guidelines,
+
+1. *Separation of Org Source and Tangled Code*:
+   - Maintain the pedagogical structure in the main directories with .org files
+   - Tangle source code to the =src/= directory organized by language
+   - This keeps the pedagogical organization clean while providing proper structure for compiled languages
+
+2. *C++ and Julia Integration*:
+   - For C++, tangle the code from =.org= files to the appropriate directories in =src/cpp/=
+   - CMakeLists.txt would also be tangled from the .org files
+   - Use Org-babel's ability to tangle to specific files with specific headers/permissions
+
+3. *Build Process Management*:
+   - Create helper scripts in =scripts/tangle/= to manage the tangling process
+   - These scripts would ensure code blocks from .org files get tangled to the right locations
+   - For C++, add a post-tangle step that runs CMake
+
+4. *Org-mode Source Block Organization*:
+   - Use named source blocks and Org's =noweb= feature for modular code development
+   - Add appropriate headers to source blocks to indicate where they should be tangled
+   - Example:
+     #+begin_src
+     #+begin_src C++ :tangle "../src/cpp/terrain/src/Renderer.cpp" :noweb yes
+     // Code here
+     #+end_src
+     #+end_src
+
+5. *Additional Structure Elements*:
+   - Added a =tests/= directory for unit tests
+   - Added =scripts/= for utility scripts
+   - Included =build/= directory for compiled output (which would be gitignored)
+   - Added =assets/= for static assets used in documentation
+
+This structure allows us to:
+1. Develop our understanding and code in a pedagogical, topic-based hierarchy
+2. Generate properly structured source code for different languages
+3. Maintain a clean separation between documentation/explanation and implementation
+4. Enable proper building and testing of the compiled languages
+5. Facilitate the creation of usable packages in all three languages
 
 * Maps and topography

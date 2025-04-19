@@ -1,0 +1,216 @@
+#+PROPERTY: SRCLOC /Users/vishalsoodmuchu/work/learn/scapes/project/himalaya-forms/parbati/src/cpp/Landscapes/source
+#+title: Understanding OpenGL
+
+Here we learn about OpenGL. OpenGL is a graphics API that allows us to interact with the GPU.
+
+* Window Creation
+To create a functioning OpenGL window involves several key steps:
+
+** 1. Initialize a windowing system, /i.e./ GLFW
+
+GLFW must be initialized before any window operations. It sets up the necessary environment for window creation across different platforms,
+#+name: initialize-glfw
+#+begin_src cpp :main no :noweb yes :tangle no
+LOG_DEBUG(CORE_LOG, "Initializing GLFW...");
+
+if (!glfwInit()) {
+    LOG_DEBUG(CORE_LOG, "Failed to inbitialize GLFW");
+    return -1;
+}
+#+end_src
+
+** 2. Configure GLFW
+
+We tell GLFW what version of OpenGL to use, 3.3 in our case, and with the core profile. Core profile is widely supported and includes modern features while excluding deprecated functionality,
+#+name: configure-glfw
+#+begin_src cpp :main no :noweb yes :tangle no
+glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+#+end_src
+
+** 3. Create the Window
+
+To create an actual window, we specify it's dimensions as width, and height. The =nullptr= arguments specify that we do not want a fullscreen window, and that the created window should not share resources with any other window,
+#+name: create-window
+#+begin_src cpp :main no :noweb yes :tangle no
+LOG_DEBUG(CORE_LOG, "Creating window...");
+
+int windowWidth = 800; int windowHeight = 600;
+
+GLFWwindow* window =
+    glfwCreateWindow(
+        windowWidth, windowHeight, "OpenGL Single Color Example",
+        nullptr, nullptr);
+
+if (!window) {
+    LOG_ERROR(CORE_LOG, "Failed to create GLFW window");
+    glfwTerminate();
+    return -1;}
+#+end_src
+
+** 4. Make Context Current
+
+We must tell GLFW which window's OpenGL context should be active for subsequent OpenGL commands,
+#+name: make-current-context
+#+begin_src cpp :main no :noweb yes :tangle no
+glfwMakeContextCurrent(window);
+#+end_src
+
+** 5. Initialize GLAD
+
+For cross-platform operability of our application, we will use GLAD to load all the OpenGL function pointers dynamically at runtime,
+#+name: initialize-glad
+#+begin_src cpp :main no :noweb yes :tangle no
+LOG_DEBUG(CORE_LOG, "Initializing GLAD...");
+if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+    LOG_ERROR(CORE_LOG, "Failed to initialize GLAD");
+    glfwDestroyWindow(window);
+    glfwTerminate();
+    return -1;
+}
+#+end_src
+
+** 6. Set up the Viewport
+
+OpenGL will draw inside the window, but we have to tell it where,
+#+name: set-viewport
+#+begin_src cpp :main no :noweb yes :tangle no
+glViewport(0, 0, windowWidth, windowHeight);
+#+end_src
+The parameters are =(x, y, width, height)= where =(x, y)= is the lower-left corner.
+
+** 7. Set Clear Color
+
+OpenGL will clear the screen, and we can set the color to use,
+#+name: set-clear-color
+#+begin_src cpp :main no :noweb yes :tangle no
+glClearColor(0.0f, 0.5f, 0.5f, 1.0f);
+#+end_src
+The parameters are =(red, green, blue, alpha)= with values in =(0.0, 1.0)=. We have parameterized the color teal above, and it should be visible across the entire window.
+
+** 8. Rendering
+
+We use OpenGL to render using a loop,
+#+name: render-loop
+#+begin_src cpp :main no :noweb yes :tangle no
+LOG_INFO(CORE_LOG, "Entering render loop...");
+while (!glfwWindowShouldClose(window)) {
+    // Process input
+    processInput(window);
+
+    //Clear the screen
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Swap buffers and poll events
+    glfwSwapBuffers(window);
+    glfwPollEvents();
+}
+#+end_src
+
+** 9. Cleanup
+
+We must always clean up resources, destroying the window and terminating GLFW to release alloacted resources,
+#+name: cleanup
+#+begin_src cpp :main no :noweb yes :tangle no
+glfwDestroyWindow(window);
+glfwTerminate();
+
+LOG_INFO(CORE_LOG, "Program terminated normally");
+#+end_src
+
+** OpenGL Callbacks and Process Input
+
+We will need some callbacks to pass to OpenGL, and function to process input,
+#+name: callbacks-&-input-process
+#+begin_src cpp :main no :noweb yes :tangle no
+// Error callback for GLFW
+void errorCallback(int error, const char* description) {
+    LOG_ERROR(CORE_LOG, "GLFW Error %s %s", error, description);
+}
+
+// Window resize callback
+void framebufferSizeCallback(GLFWwindow* window, int width, int height) {
+    // Update the viewport to match the new window dimensions
+    glViewport(0, 0, width, height);
+}
+
+// Process keyboard input
+void processInput(GLFWwindow* window) {
+    // Close the window when Escape is pressed
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
+}
+#+end_src
+
+** Main
+
+#+header: :tangle (concat (org-entry-get nil "SRCLOC" t) "/apps/main.cpp")
+#+begin_src cpp :main no :noweb yes :tangle ./main.cpp
+#include <iostream>
+
+// Include GLAD before GLFW as GLAD contains the OpenGL headers
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+
+#include "utilities/logger.hpp"
+
+<<callbacks-&-input-process>>;
+
+int main() {
+    // ---- 1. Initialize GLFW ----
+    <<initialize-glfw>>;
+
+    // Set error callback
+    glfwSetErrorCallback(errorCallback);
+
+    // Configure GLFW
+    // OpenGL 3.3 core profile
+    <<configure-glfw>>;
+
+    // Make window visible (explicitly)
+    glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
+
+    // For macOS compatibility
+    #ifdef __APPLE__
+        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+    #endif
+
+    // ---- 2. Create GLFW Window ----
+    <<create-window>>;
+
+    // Make the window's context current
+    <<make-current-context>>;
+
+    // Center the window on screen
+    const GLFWvidmode* mode =
+        glfwGetVideoMode(glfwGetPrimaryMonitor());
+    if (mode) {
+        int xpos = (mode->width - windowWidth) / 2;
+        int ypos = (mode->height - windowHeight) / 2;
+        glfwSetWindowPos(window, xpos, ypos);}
+
+    // ---- 3. Initialize GLAD ----
+    <<initialize-glad>>;
+
+    // Set up framebuffer resize callback
+    glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
+
+    // ---- 4. Configure OpenGL state ----
+    std::cout << "Configuring OpenGL state..." << std::endl;
+
+    // Set the initial viewport dimensions
+    <<set-viewport>>;
+
+    // Set a clear color (teal blue color)
+    <<set-clear-color>>;
+
+    // ---- 5. Render Loop ----
+    <<render-loop>>;
+
+    // Clean up
+    <<cleanup>>;
+
+    return 0;
+}
+#+end_src

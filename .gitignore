@@ -46,6 +46,7 @@ htmlcov
 parbati/visualization/MountainViz/build/
 *.make
 *.o
+*.internal
 
 
 # AI help

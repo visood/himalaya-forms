@@ -1,0 +1,357 @@
+#+PROPERTY: SRCLOC /Users/vishalsoodmuchu/work/learn/scapes/project/himalaya-forms/parbati/src/cpp
+
+#+title: Application
+
+To orchestrate an application cleanly, we can define a class. We will follow the principle of expressing ownership semantics in the type system.This will allow cleaner management of memory.
+
+* Public interface
+
+Our =class Application= will implement a simple public interface,
+#+name: application-public-interface
+#+begin_src cpp :main no :noweb yes :tangle no
+Application(std::shared_ptr<SceneConfig> config);
+~Application();
+
+Application(const Application&) = delete;
+Application& operator=(const Application&) = delete;
+
+void initialize();
+
+int run();
+
+void update(float delta_time);
+
+void render();
+#+end_src
+
+To accomplish it's functionality, =class Application= will invoke other classes and methods, which we will implement as private data and methods.
+
+* Private data and methods
+
+We will need =class Application= to own the different components required to run an interactive visualization. Following the principle of expressing ownership semantics in the type system,
+#+name: application-private-attributes
+#+begin_src cpp :main no :noweb yes :tangle no
+std::shared_ptr<SceneConfig> _config;
+
+std::unique_ptr<Window> _window;
+
+std::chrono::time_point<std::chrono::high_resolution_clock> _last_frame_time;
+#+end_src
+
+We don't have much in there, but once we have defined other components we will need to include them here. For example,
+#+begin_src cpp :main no :noweb yes :tangle no
+std::shared_ptr<SceneConfig> _config;
+
+std::unique_ptr<Window> _window;
+std::unique_ptr<Scene> _scene;
+std::unique_ptr<InputHandler> _input_handler;
+std::unique_ptr<Renderer> _renderer;
+std::unique_ptr<UIManager> _ui_manager;
+
+std::chrono::time_point<std::chrono::high_resolution_clock> _last_frame_time;
+#+end_src
+
+The window, scene, input interface, and other components that an application will use must not be accessible by any other program. We have used unique pointers (=std::unique_ptr=) to represent such components with clear singular ownership. Our =class Application= exclusively owns such components - they cannot be shared with external systems. When an instance of =class Application= is destroyed, so should these components in a deterministic order. Thus we get automatic cleanup, and that too with zero overhead compared to manual memory management.
+
+We chose a shared pointer (=std::shared_ptr=) to an instance of =class SceneConfig=, allowing access and ownership of the configuration object by multiple components. The configuration can be passed to other parts of the system while ensuring it remains alive as long as anything needs it. Using shared ownership makes sense for global resources like configuration that might be referenced throughout the application lifecycle.
+
+** Randomness in a Landscape
+Landscapes evolve in time, in ways we cannot determine. We will rely on random distributions to fill in the unknown detail. In modern C++ we can use =include <random>= header, and use it to define a single random number generator for the application,
+#+name: application-define-randgen
+#+begin_src cpp :main no :noweb yes :tangle no
+std::shared_ptr<std::mt19937> _random_generator;
+#+end_src
+
+To create components required by our application, we will pass a reference to =Application::random_generator= that these components can then use to generate a distribution. This will allow our application to display randomness.
+
+* Header summary
+
+Finally we can put together the private, and public members to define the class,
+#+name: define-application-header
+#+header: :tangle (concat (org-entry-get nil "SRCLOC" t) "/Landscapes/include/core/application.hpp")
+#+begin_src cpp :main no :noweb yes
+#pragma once
+
+#include "utilities/logger.hpp"
+#include "core/scene_config.hpp"        // Our scene configuration
+#include "core/window.hpp"
+
+#include <string>                  // For std::string
+#include <functional>              // For std::function
+#include <memory>                  // For smart pointers
+#include <chrono>                  // For time measurement
+#include <vector>                  // For collections
+#include <random>                  // For random numbers
+#include <algorithm>               // For standard algorithms
+#include <iostream>                // For error reporting
+#include <stdexcept>               // For exception handling
+#include <atomic>                  // For thread-safe state variables
+#include <thread>                  // For threading support
+#include <mutex>                   // For synchronization
+#include <utility>                 // For std::pair, std::move
+#include <filesystem>              // For file path handling
+
+class Application {
+private:
+   <<application-private-attributes>>
+
+   <<application-define-randgen>>
+
+public:
+    <<application-public-interface>>
+};
+#+end_src
+
+* Construct and initialize an application
+
+To run an application we start by constructing and initializing one,
+#+name: app-construct
+#+begin_src cpp :main no :noweb yes :tangle no :results none
+Application::Application(std::shared_ptr<SceneConfig> config)
+    : _config(config)
+    , _last_frame_time(std::chrono::high_resolution_clock::now())
+    , _random_generator(std::make_shared<std::mt19937>(config->run.random_seed))
+{}
+
+void Application::initialize() {
+    // Initialize logger with settings
+    LOG_INFO(CORE_LOG, "Application::initialize()");
+
+    _window =
+        std::make_unique<Window>(*_config);
+    if (!_window->initialize()) {
+        LOG_ERROR(CORE_LOG,
+                  "Application::initialize()::Problem initializing a window.");
+        throw std::runtime_error("Application failed to initialize a valid window.");
+    } else {
+        LOG_DEBUG(CORE_LOG,
+                  "Application::initialize():: SUCCESS Got a window.");
+    }
+
+    glViewport(0, 0, _window->get_width(), _window->get_height());
+
+    // Set color from configuration
+    glClearColor(
+        _config->window.bg_clear_color[0],
+        _config->window.bg_clear_color[1],
+        _config->window.bg_clear_color[2],
+        _config->window.bg_clear_color[3]);
+
+    // Set up basic OpenGL state
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+
+    LOG_INFO(CORE_LOG, "Application::initialize()::DONE");
+}
+#+end_src
+
+To add more components to our application, we will initialize them here.
+
+* Run
+Let us see how to run the application.
+#+name: app-run
+#+begin_src cpp :main no :noweb yes :tangle no
+int Application::run() {
+    LOG_INFO(CORE_LOG, "Application::run()::Run");
+
+    try {
+        _last_frame_time =
+            std::chrono::high_resolution_clock::now();
+        auto dt_epoch =
+            _last_frame_time.time_since_epoch();
+        using DType =
+            std::chrono::duration<float>;
+        auto seconds =
+            std::chrono::duration_cast<DType>(dt_epoch).count();
+
+        LOG_DEBUG(CORE_LOG,
+                  "Application::run()::Frame time set to: {} seconds since epoch", seconds);
+
+        while (!_window->should_close()) {
+            auto current_frame_time = std::chrono::high_resolution_clock::now();
+
+            // add some delay
+            //LOG_DEBUG(CORE_LOG, "Application::run() --- with delay to debug develop");
+            //std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+            float delta_time = DType(current_frame_time - _last_frame_time).count();
+
+            LOG_DEBUG(CORE_LOG, "Application::run()::delta_time={} seconds", delta_time);
+
+            _last_frame_time = current_frame_time;
+
+            update(delta_time);
+            render();
+
+            _window->poll_events();
+            _window->swap_buffers();
+        }
+
+        return 0;
+    } catch (const std::exception& e) {
+        LOG_ERROR(CORE_LOG, "Application::run()::ERROR: {}", e.what());
+        return 1;
+    }
+}
+
+void Application::update(float delta_time) {
+    LOG_WARN(CORE_LOG, "Application::update({})::...NOTIMPLEMENTED YET", delta_time);
+    //_input_handler -> update(delta_time);
+
+    //_scene -> update(delta_time);
+    LOG_INFO(CORE_LOG, "Application::update({})::...DONE", delta_time);
+}
+#+end_src
+
+
+
+#+name: app-render
+#+begin_src cpp :main no :noweb yes :tangle no
+void Application::render() {
+    // Set a clear color that's distinctly visible (not black if you want to test)
+    // glClearColor(0.2f, 0.3f, 0.3f, 1.0f); // Dark teal color for testing
+
+    // Clear the color and depth buffer
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    //glClear(GL_COLOR_BUFFER_BIT);
+
+    // If you want to draw a colored rectangle for testing visibility:
+    // (This would require adding simple rendering code)
+
+    LOG_DEBUG(CORE_LOG, "Application::render() - cleared screen");
+}
+#+end_src
+
+#+name: app-render-with-shaders-example
+#+begin_src cpp :main no :noweb yes :tangle no
+void Application::render() {
+    // Clear the color and depth buffer
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Draw a simple colored triangle
+    static bool initialized = false;
+    static GLuint VAO, VBO;
+
+    if (!initialized) {
+        // Setup vertex data
+        float vertices[] = {
+            -0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f, // bottom left, red
+             0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, // bottom right, green
+             0.0f,  0.5f, 0.0f, 0.0f, 0.0f, 1.0f  // top, blue
+        };
+
+        // Create and bind VAO
+        glGenVertexArrays(1, &VAO);
+        glBindVertexArray(VAO);
+
+        // Create and bind VBO
+        glGenBuffers(1, &VBO);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+        // Position attribute
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+
+        // Color attribute
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(1);
+
+        // Create a simple shader
+        const char* vertexShaderSource =
+            "#version 330 core\n"
+            "layout (location = 0) in vec3 aPos;\n"
+            "layout (location = 1) in vec3 aColor;\n"
+            "out vec3 vertexColor;\n"
+            "void main() {\n"
+            "   gl_Position = vec4(aPos, 1.0);\n"
+            "   vertexColor = aColor;\n"
+            "}\0";
+
+        const char* fragmentShaderSource =
+            "#version 330 core\n"
+            "#version 330 core\n"
+            "in vec3 vertexColor;\n"
+            "out vec4 FragColor;\n"
+            "void main() {\n"
+            "   FragColor = vec4(vertexColor, 1.0);\n"
+            "}\0";
+
+        // Compile vertex shader
+        GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
+        glCompileShader(vertexShader);
+
+        // Compile fragment shader
+        GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
+        glCompileShader(fragmentShader);
+
+        // Link shaders
+        GLuint shaderProgram = glCreateProgram();
+        glAttachShader(shaderProgram, vertexShader);
+        glAttachShader(shaderProgram, fragmentShader);
+        glLinkProgram(shaderProgram);
+
+        // Use the shader program
+        glUseProgram(shaderProgram);
+
+        // Delete shaders as they're linked into our program now
+        glDeleteShader(vertexShader);
+        glDeleteShader(fragmentShader);
+
+        initialized = true;
+    }
+
+    // Draw the triangle
+    glBindVertexArray(VAO);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+
+    LOG_DEBUG(CORE_LOG, "Application::render() - cleared screen and drew triangle");
+}
+#+end_src
+
+* Destruct
+To close and quit the application we will need to clean up,
+#+name: app-destruct
+#+begin_src cpp :main no :noweb no :tangle no
+Application::~Application() {
+    // unique_ptr members will automatically
+    // clean up their resources when they go out of scope.
+    // However, we might have to clean up in a specific order
+
+    // First destroy the UI manager as it might depend on other components
+    //_ui_manager.reset();
+
+    // Then destroy the renderer
+    //_renderer.reset();
+
+    // Then the scene
+    //_scene.reset();
+
+    // Input handler next
+    //_input_handler.reset();
+
+    // Window last, since other components need it during their cleanup
+    _window.reset();
+
+    // shared_ptr Config will clean itself up when no longer referenced
+}
+#+end_src
+
+* Summary
+
+Let us put together the application's source code,
+#+name: app-source
+#+header: :tangle (concat (org-entry-get nil "SRCLOC" t) "/Landscapes/source/core/application.cpp")
+#+begin_src cpp :main no :noweb yes :tangle ../../source/core/application.cpp
+#include "core/application.hpp"
+
+<<app-construct>>
+
+<<app-run>>
+
+<<app-render>>
+
+<<app-destruct>>
+#+end_src

@@ -1,0 +1,55 @@
+#+PROPERTY: SRCLOC /Users/vishalsoodmuchu/work/learn/scapes/project/himalaya-forms/parbati/src/cpp/Landscapes
+
+* Introduction: Foundations of an application
+:LOGBook:
+We used the LLM (Claude-3-7-Sonnet-20240219>>>>>)
+:END:
+The "core" of an application's codebase generally refers to the fundamental components that provide essential infrastructure and control flow, upon which the rest of the application is built. An application's core components establish it's architecture, and manage its lifecycle. It is the structural backbone upon which more specialized features are built. These components aren't specific to any particular visualization feature, but rather serve as the underlying framework that everything else builds upon.
+
+In general, a core provides:
+
+1. *Essential infrastructure* - The foundational elements that support all other functionality
+2. *Central business logic* - The primary algorithms and processes that define what the application does
+3. *Architectural patterns* - The organizing principles that determine how components interact
+4. *Common utilities* - Shared tools and helper functions used throughout the application
+5. *State management* - Handling of application-wide data and conditions
+
+In our landscape visualization application specifically, the core would likely include:
+
+1. *Rendering engine fundamentals* - Basic framework for drawing to the screen
+2. *Window/view management* - Handling the main display and GUI areas
+3. *Event handling system* - Processing user inputs (mouse, keyboard, etc.)
+4. *Asset management* - Loading and organizing resources like textures or 3D models
+5. *Math libraries* - Vector/matrix operations essential for graphics
+6. *Application lifecycle management* - Startup, shutdown, and main loop control
+7. *Common data structures* - Representations of objects, scenes, or terrains
+
+The core provides a stable foundation that allows us to swap different landscape implementations while maintaining consistent handling of windows, user input, rendering pipelines, and other fundamental operations. This separation of concerns will make our framework more flexible as we experiment with different Himalayan-inspired landscapes.
+
+* Configuration
+* Application
+* OpenGL
+We will need wrappers, to include guards that check if we're already in an =extern "C"= context.
+#+header: :tangle (concat (org-entry-get nil "SRCLOC" t) "/include/core/opengl_includes.hpp")
+#+begin_src cpp :main no
+// opengl_includes.hpp
+#pragma once
+
+// First include GLAD with proper inclusion guards
+#ifndef GLAD_INCLUDED
+#define GLAD_INCLUDED
+
+//Tell glad.h not to use extern "C" by defining
+#define GLAD_NO_EXTERN_C
+#ifdef __cplusplus
+extern "C" {
+#endif
+#include "../extern/glad/glad.h" //glad_wrapper.hpp"
+#ifdef __cplusplus
+}
+#endif
+#endif
+
+// Then include GLFW
+#include "GLFW/glfw3.h"
+#+end_src
