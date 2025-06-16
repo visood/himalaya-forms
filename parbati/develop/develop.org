@@ -1,0 +1,248 @@
+#+STARTUP: overview
+#+STARTUP: logdrawer
+#+STARTUP: hideblocks
+
+#+PROPERTY: header-args: :eval never-export
+
+#+PROPERTY: header-args:jupyter :session ~/jupyter-run/active-local-py.json
+#+PROPERTY: header-args:jupyter: :exports both
+#+PROPERTY: header-args:jupyter: :cache yes
+#+PROPERTY: header-args:jupyter: :eval never-export
+
+#+PROPERTY: header-args:jupyter-python :session ~/jupyter-run/active-local-py.json
+#+PROPERTY: header-args:jupyter-python: :exports both
+#+PROPERTY: header-args:jupyter-python: :cache yes
+#+PROPERTY: header-args:jupyter-python: :eval never-export
+
+#+PROPERTY: header-args:jupyter-julia :session ~/jupyter-run/active-local-jl.json
+#+PROPERTY: header-args:jupyter-julia: :exports both
+#+PROPERTY: header-args:jupyter-julia: :cache yes
+#+PROPERTY: header-args:jupyter-julia: :eval never-export
+
+#+PROPERTY: header-args:bash: :exports code
+
+#+PROPERTY: header-args:elisp: :exports both
+
+#+PROPERTY: header-args:bibtex :exports none
+#+BIBLIOGRAPHY: "./refs.bib"
+#+BIBLIOGRAPHY: "../learn/refs.bib"
+#+PROPERTY: header-args:bibtex :tangle "./refs.bib"
+#+CITE_EXPORT: natbib
+
+
+#+LATEX_CLASS: article
+#+LATEX_CLASS_OPTIONS: [a4paper,12pt]
+#+LATEX_HEADER: \usepackage[utf8]{inputenc}
+#+LATEX_HEADER: \usepackage{booktabs} % for much better looking tables
+#+LATEX_HEADER: \usepackage{g\usepackage{babel}
+#+LATEX_HEADER: \usepackage{babel}
+#+LATEX_HEADER: \usepackage[up,bf,raggedright]{titlesec}
+#+LATEX_HEADER: \usepackage{paralist} % flexible & customisable lists (enumerate/itemize, etc.)
+#+LATEX_HEADER: \usepackage{subfig} % make it possible to include more than one captioned figure/table in a single float
+#+LATEX_HEADER: \usepackage[labelfont=bf,font=small]{caption}
+#+LATEX_HEADER: \usepackage[hidelinks]{hyperref}% for adding urls
+#+LATEX_HEADER: \usepackage{sectsty}
+#+LATEX_HEADER: \allsectionsfont{\sffamily\mdseries\upshape} % (See the fntguide.pdf for font help)
+#+LATEX_HEADER: \sectionfont{\bfseries\Large\raggedright}
+#+LATEX_HEADER: \usepackage[natbib=true]{biblatex} \DeclareFieldFormat{apacase}{#1} \addbibresource{~/org/resources/bibliography/refs.bib}
+#+LATEX_HEADER: \usepackage{parskip}
+#+LATEX_HEADER: \usepackage{amsmath}%To cleanly write equations and math text
+
+
+#+OPTIONS: <:nil c:nil todo:nil H:5
+
+Let us load the ~Python~ environment that we will need for our discussion,
+#+begin_src elisp
+(pyvenv-activate "~/.vmgr_repo/py311/")
+#+end_src
+
+#+RESULTS:
+
+Let us setup an interactive ~Python~ session where we can run the code developed here.
+#+begin_src jupyter
+print("Welcome to EMACS Jupyter")
+#+end_src
+
+
+#+title: Digital Forms for Himalaya
+#+subtitle: A Development Environment
+
+* CMake Builds
+We will use ~cmake~ for building C++ applications, and here develop a template that we can use to build particular targets.
+
+#+name: cmake-project
+#+begin_src cmake :tangle no
+cmake_minimum_required(VERSION 3.12)
+
+project(HimalayaForms)
+
+set(CMAKE_CXX_STANDARD 21)
+#+end_src
+
+We will need to define and set definition flags for compilation,
+#+name: cmake-compile-definitions
+#+begin_src cmake :tangle no
+# Add your existing compile definitions
+add_compile_definitions(
+    GLM_FORCE_PURE=1
+    GLM_FORCE_CTOR_INIT=1
+    GLM_FORCE_CXX17=1
+    GLM_ENABLE_EXPERIMENTAL=1
+    GLM_FORCE_INLINE=1
+    GLM_FORCE_EXPLICIT_CTOR=1
+    GLM_FORCE_SILENT_WARNINGS=1
+)
+#+end_src
+
+We will use external packages for our applications,
+#+name: cmake-find-packages
+#+begin_src cmake :tangle no
+find_package(OpenGL REQUIRED)
+find_package(glfw3 REQUIRED)
+#+end_src
+
+** External packages
+We will need to tell the compiler locations of external packages,
+*** YAML
+#+name: cmake-set-yaml
+#+begin_src cmake :tangle no
+# Homebrew handling for yaml-cpp
+if(APPLE)
+    # Determine Homebrew prefix (different on Intel vs Apple Silicon)
+    if(EXISTS "/opt/homebrew/opt/yaml-cpp")
+        # Apple Silicon Mac
+        set(HOMEBREW_PREFIX "/opt/homebrew")
+    else()
+        # Intel Mac
+        set(HOMEBREW_PREFIX "/usr/local")
+    endif()
+
+    # Explicitly set yaml-cpp paths
+    set(YAML_CPP_INCLUDE_DIR "${HOMEBREW_PREFIX}/include")
+    set(YAML_CPP_LIBRARY "${HOMEBREW_PREFIX}/lib/libyaml-cpp.dylib")
+
+    message(STATUS "Using Homebrew yaml-cpp at: ${HOMEBREW_PREFIX}")
+    message(STATUS "yaml-cpp include: ${YAML_CPP_INCLUDE_DIR}")
+    message(STATUS "yaml-cpp library: ${YAML_CPP_LIBRARY}")
+else()
+    # Non-macOS systems
+    find_package(yaml-cpp REQUIRED)
+endif()
+#+end_src
+
+*** GLM
+We have ~GLM~ in,
+#+name: cmake-set-glm
+#+begin_src cmake
+set(GLM_CPP_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/third-party)
+#+end_src
+
+*** GLAD
+We have ~GLAD~ in,
+#+name: cmake-set-glad
+#+begin_src cmake
+set(GLAD_CPP_INCLUDE_DIR ${PWD}/include)
+set(GLAD_CPP_SOURCE_DIR ${PWD}/include/glad/glad.c)
+#+end_src
+
+*** ImGui
+#+name: cmake-set-imgui
+#+begin_src cmake
+# ImGui includes and sources
+set(IMGUI_DIR include/imgui)
+set(IMGUI_SOURCES
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_demo.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+)
+#+end_src
+
+*** Includes
+We will ~include~ several headers in our compilations,
+#+name: cmake-include-external>>
+#+begin_src cmake :tangle no
+# Include YAML
+include_directories(${YAML_CPP_INCLUDE_DIR})
+
+# Include GLM
+include_directories(${PROJECT_SOURCE_DIR}/third-party)
+
+# Include GLAD
+include_directories(include)
+
+# Include ImGui
+include_directories(${IMGUI_DIR})
+#+end_src
+
+** Sources
+#+name: cmake-define-sources
+#+begin_src cmake
+# Define source files
+
+set(SOURCES
+    src/main.cpp
+    src/renderer/OpenGLRenderer.cpp
+    src/terrain/ProceduralTerrain.cpp
+    src/Config.cpp
+    ${GLAD_SOURCES}
+    ${IMGUI_SOURCES}
+)
+#+end_src
+
+** Executable
+#+name: cmake-define-executable
+#+begin_src cmake
+# Create executable
+add_executable(Himalaya-Forms ${SOURCES})
+#+end_src
+
+** Link libraries
+#+name: cmake-link-libraries
+#+begin_src cmake
+# Link libraries - use the explicit path for yaml-cpp on macOS
+if(APPLE)
+    target_link_libraries(Himalayan-Forms
+        OpenGL::GL
+        glfw
+        ${YAML_CPP_LIBRARY}
+        "-framework Cocoa"
+        "-framework IOKit"
+        "-framework CoreVideo"
+    )
+else()
+    target_link_libraries(MountainViz
+        OpenGL::GL
+        glfw
+        yaml-cpp
+    )
+endif()
+#+end_src
+
+** CMakeLists.txt
+#+begin_src cmake :tangle no :noweb yes
+<<cmake-project>>
+
+<<cmake-compile-definitions>>
+
+<<cmake-find-packages>>
+
+<<cmake-set-yaml>>
+
+<<cmake-set-glm>>
+
+<<cmake-set-glad>>
+
+<<cmake-set-imgui>>
+
+<<cmake-include-external>>
+
+<<cmake-define-sources>>
+
+<<cmake-define-executable>>
+
+<<cmake-link-libraries>>
+#+end_src

@@ -43,11 +43,10 @@ htmlcov
 *_cache.py
 *.log
 
-parbati/visualization/MountainViz/build/
+parbati/src/cpp/Landscapes/build/
 *.make
 *.o
 *.internal
-
 
 # AI help
 aihelp/

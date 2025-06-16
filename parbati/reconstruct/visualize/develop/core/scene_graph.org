@@ -1,0 +1,206 @@
+#+title: Scene Graph
+
+At it's heart, a *Scene Graph* is a hierarchical data structure, most commonly a tree (or sometimes a directed acyclic graph, DAG), that organizes all the elements within a visual scene, typically a 2D or 3D world. It represents relationships between objects, allowing transformations applied to parent nodes to propagate to their children. This applies for our visualizing landscapes where we will explore natural hierarchies - a mountain range contains mountains, which contain valleys, which contain rivers, /etc/. Think of it as an inventory or a blueprint of everything present in our virtual environment and how these things relate to each other. A typical implementation will feature,
+
+- 1. Hierarchy :: Objects are organized in parent-child relationships. For example, a =car= node might have =wheel= nodes as children. This reflects natural groupings and dependencies. For example, a =MountainRange= node could contain several =Mountain= nodes, each =Mountain= could contain =Valley= and =Ridge= nodes, and a =Valley= might contain a =River= node.
+
+- 2. Nodes :: Each item in a scene-graph tree is a "node". Nodes can represent various things,
+  * Geometric objects :: Meshes for mountains, trees, buildings.
+  * Lights :: Sources of illumination (sun, point lights).
+  * Cameras :: Viewpoints into the scene.
+  * Transformations :: Changes in position, rotation or scale. These are crucial as they define an object's spatial properties relative to it's parent.
+  * Logical Groupings :: Empty nodes used purely to group other nodes (/e.g./ a "forest" node grouping many "tree" nodes).
+
+- 3. Transformations Propagation :: A powerful feature is that transformations like moving, rotating , or scaling applied to a parent node automatically propagate to all it's child nodes. If we move the =tree= node, all it's =leaf= nodes move with it, maintaining their relative positions to the =tree=. If we rotate =MountainRange=, all it's constituent =Mountains= and =Valleys= rotate accordingly.
+
+- 4. State Inheritance :: Besides transformations, other properties or states (like visibility, material properties, rendering modes) can also be inherited down the hierarchy, though this can be overridden at child nodes.
+
+Essentially, a scene graph provides a structured way to represent the logical and spatial relationships between objects in a scene. It simplifies managing complex scenes by breaking them down into manageable parts.
+
+
+* Applications
+
+Scene graphs are a cornerstone in several fields:
+
+1.  *3D Computer Graphics and Visualization:* This is their primary domain. They are used in:
+    *   *Rendering:* Traversing the graph allows renderers to draw objects in the correct order and with the correct transformations.
+    *   *Animation:* Animating a parent node (e.g., an upper arm) automatically affects child nodes (lower arm, hand).
+    *   *Culling:* Efficiently determining which objects are visible (view frustum culling) or too far away to render in detail (occlusion culling, Level of Detail management).
+    *   *Interaction:* Picking objects (identifying which object is clicked by the mouse).
+2.  *Game Development:* Game engines (like Unreal Engine, Unity) heavily rely on scene graphs (or similar entity-component systems that often manifest as hierarchies) to manage game objects, characters, levels, and their interactions. The Unreal Engine quote in =scene_graph.org= highlights its role as a "unified structure that connects all the objects in the world."
+3.  *Simulation:* Representing complex systems with interconnected parts, such as robotic arms, molecular structures, or even simulated ecosystems.
+4.  *Virtual Reality (VR) and Augmented Reality (AR):* Structuring the virtual environments and the objects within them.
+5.  *CAD/CAM Software:* Modeling complex assemblies of parts.
+6.  *Image and Video Analysis:* As noted in our =scene_graph.org= literature section, "Scene Graph Generation" from images or text is an active research area. Here, the graph represents objects and their relationships /detected/ in media, rather than constructed for rendering.
+
+* Similar Constructs in Other Applications
+
+The concept of a hierarchical structure to organize information and manage relationships is not unique to graphics. We see similar ideas in:
+
+1.  *Graphical User Interface (GUI) Toolkits:* Widgets in a GUI are often organized hierarchically. A window contains panels, panels contain buttons, labels, etc. Layout and event propagation often follow this hierarchy.
+2.  *Document Object Model (DOM):* In web development, the DOM represents an HTML or XML document as a tree of nodes. Manipulating the DOM changes the web page's structure and content.
+3.  *File Systems:* Directories (folders) and files form a classic tree structure. Paths represent traversals through this hierarchy.
+4.  *Abstract Syntax Trees (ASTs):* Compilers parse source code into ASTs, which represent the grammatical structure of the code hierarchically.
+5.  *Organizational Charts:* Representing the structure of a company or institution with departments, teams, and individuals.
+6.  *Biological Taxonomy:* The classification of living organisms (Kingdom, Phylum, Class, etc.) is a deep hierarchy.
+7.  *Knowledge Representation:* Ontologies and knowledge graphs (which we aim to build!) often use hierarchical relationships (e.g., "is-a", "part-of") to structure information, although they can be more general graphs (not strictly trees).
+
+In all these cases, the hierarchy helps manage complexity, define relationships, and allow properties or operations to be applied systematically.
+
+* Simple Examples
+
+Let's use Scheme's list-based syntax to illustrate some simple scene graph concepts. We can represent a node as a list, perhaps =(node-type name-or-properties child1 child2 ...)=.
+
+*1. A Very Simple Landscape (extending our =bare-terrain= idea from =reconstruct.org=):*
+
+This example focuses on logical and spatial grouping.
+
+#+begin_src scheme
+(define simple-landscape
+  '(scene "Himalayan Foothills"
+    (properties (time-of-day "afternoon") (weather "clear"))
+    (group "SkyElements"
+      (skybox "BlueSkyWithWispyClouds")
+      (light "Sun" (type "directional") (color "white") (intensity 1.0) (direction (0.8 -0.5 -0.2))))
+    (group "GroundElements"
+      (transform (position 0 0 0)) ; Global ground plane
+      (terrain "MainValley" (heightmap "valley_data.png"))
+      (group "ForestPatch"
+        (transform (position 100 50 20) (scale 0.8 0.8 0.8)) ; Position and scale the whole patch
+        (object "PineTree1" (model "pine.obj") (transform (position 0 0 0)))
+        (object "PineTree2" (model "pine.obj") (transform (position 10 5 0)))
+        (object "RockCluster" (model "rocks.obj") (transform (position 5 -5 0))))
+      (waterbody "River" (type "flowing") (path-points ((0 10 5) (50 15 4) (100 5 3)))))))
+#+end_src
+
+In this example:
+-   =scene=, =group=, =object=, =light=, =terrain=, =waterbody= could be node types.
+-   Transformations like =(position ...)= or =(scale ...)= applied to =ForestPatch= would affect all trees and rocks within it.
+-   The =Sun= light is part of the =SkyElements= group.
+
+*2. A Solar System Model (illustrating nested transformations):*
+
+#+begin_src scheme
+(define solar-system
+  '(scene "Mini Solar System"
+    (camera "Observer" (position 0 0 -30) (look-at 0 0 0))
+    (group "SunSystem"
+      (transform (rotation-y 0)) ; Sun itself doesn't orbit, but system could rotate
+      (sphere "Sun" (radius 5) (color "yellow") (emissive true))
+      (group "EarthOrbit"
+        (transform (translate 15 0 0) (rotation-y 0)) ; Earth's orbit around Sun
+        (sphere "Earth" (radius 1) (color "blue")
+          (group "MoonOrbit"
+            (transform (translate 2 0 0) (rotation-y 0)) ; Moon's orbit around Earth
+            (sphere "Moon" (radius 0.3) (color "grey"))))))))
+#+end_src
+Here:
+-   The =Moon='s position is relative to the =Earth=.
+-   The =Earth='s position (and thus the Moon's entire orbit) is relative to the =Sun=.
+-   If we animate =rotation-y= for =EarthOrbit=, the Earth (and Moon) will revolve around the Sun. If we animate =rotation-y= for =MoonOrbit=, the Moon will revolve around the Earth.
+
+*3. An Articulated Arm (showing joint hierarchy):*
+
+#+begin_src scheme
+(define robotic-arm
+  '(scene "Articulated Arm"
+    (group "ShoulderJoint"
+      (transform (position 0 5 0) (rotation-z 0)) ; Shoulder rotation
+      (cube "UpperArm" (size 0.5 2.0 0.5) (transform (translate 0 -1.0 0)) ; Offset to pivot correctly
+        (group "ElbowJoint"
+          (transform (position 0 -1.0 0) (rotation-z 0)) ; Elbow rotation relative to UpperArm end
+          (cube "LowerArm" (size 0.4 1.5 0.4) (transform (translate 0 -0.75 0))
+            (group "WristJoint"
+              (transform (position 0 -0.75 0) (rotation-y 0)) ; Wrist rotation relative to LowerArm end
+              (sphere "Hand" (radius 0.5) (transform (translate 0 -0.25 0))))))))))
+#+end_src
+In this example:
+-   Rotating =ShoulderJoint= moves the entire arm.
+-   Rotating =ElbowJoint= moves the =LowerArm= and =Hand=, but not the =UpperArm=.
+-   Each =transform= inside a joint group would typically define the joint's current angle and the offset to the next segment.
+
+These Scheme examples are pedagogical, illustrating the structure and relationships. In a real implementation, as outlined in our =scene_graph.org=, we'd have classes like =SceneNode= with methods for managing children, transformations, and traversal for rendering or updates.
+
+Our plan to implement a =SceneNode= base class and specialized nodes like =TerrainNode=, =VegetationNode=, etc., aligns perfectly with these concepts. It will allow us to build a rich, hierarchical representation of the Himalayan landscapes we explore, capable of handling the natural hierarchies we observe – from vast mountain ranges down to individual plants or rocks.
+
+This foundational understanding of scene graphs will be invaluable as we develop our visualization tools and the knowledge graph itself. We can even think about how the relationships in our knowledge graph (e.g., a specific glacier "is part of" a particular mountain, which "is in" a certain valley) could mirror or inform the structure of our visual scene graph.
+
+* Literature
+
+- [[https://paperswithcode.com/task/scene-graph-generation][Papers with code]]
+
+  A scene graph is a structured representation of an image, where nodes in a scene graph correspond to object bounding boxes with their object categories, and edges correspond to their pairwise relationships between objects. The task  of scene graph generation is to produce a visually-grounded scene graph that most accurately correlates with an image.
+
+- [[https://github.com/ChocoWu/Awesome-Scene-Graph-Generation][Awesome-Scene-Graph-Generation]]
+
+  A scene graph is a topological structure representing a scene described in text, image, video, /etc/. In this graph, the nodes correspond to object bounding boxes with their category labels and attributes, while the edges represent the pairwise relationships between objects.
+
+- [[https://dev.epicgames.com/documentation/en-us/uefn/scene-graph-in-unreal-editor-for-fortnite][Unreal developers]]
+
+  Scene Graph is a unified structure that connects all the objects in the world. Think of it as a toolbox that contains all the tools you require for set dressing, gameplay systems, audio, VFX, and much more to create experiences for the metaverse.
+
+- [[https://web.archive.org/web/20190207215718/http://www.realityprime.com/blog/2007/06/scenegraphs-past-present-and-future/][Bar-Zeev, Avi]]
+
+  ... Granted, it is probably impossible to find a single perfect organization for a scene graph that simultaneously optimizes for spatial, state, semantic, and CPU considerations. Some people try to hand-design theirs to straddle the fence and make the best of what they have. But a better idea is to remove one of the fundamental constraints: that there need be a single scene graph organization for a given visual database.
+
+** Image Retrieval using Scene Graphs ([[https://openaccess.thecvf.com/content_cvpr_2015/papers/Johnson_Image_Retrieval_Using_2015_CVPR_paper.pdf][article]])
+
+Why scene graphs?
+#+begin_quote
+A blonde white girl is standing in front of an orange cone on a lined tennis court and is holding a long heavy yellow wide racket that has a black handle. The girl is wearing a white shirt; there is a bent arm in front of the shirt and another bent arm beside the first. There is a round yellow logo on the shirt, and the logo is beside hands that are on the handle of the racket. There is a black fence behind the girl, and the girl has brown eyes above a closed mouth. There are butterflies barrettes in long blonde hair, and the hair is in a ponytail.
+#+end_quote
+
+* Core Components
+
+We will implement a scene graph that:
+
+- Maintains spatial relationships :: between landscape elements
+- Supports different levels of detail :: based on viewing distance
+- Facilitates efficient culling :: of objects outside the view frustum
+- Accommodates both static and dynamic elements :: for example, static mountains /vs./ flowing water
+- Integrates :: with our existing rendering architecture
+
+** 1. Scene Node Base Class
+
+Create a base =class SceneNode= that:
+- Has a transformation matrix (position, rotation, scale)
+- Maintains a list of child nodes
+- Provides methods for adding, removing, and finding children
+- Implements traversal methods for rendering and updates
+
+** 2. Specialized Node Types
+
+From the base =class SceneNode=, we can derive specialized nodes:
+- TerrainNode :: For large-scale landscape features
+- VegetationNode :: For trees, grasses, etc. that might use instancing
+- WaterNode :: For rivers, lakes with specialized rendering
+- AtmosphereNode :: For sky, clouds, weather effects
+- LightNode :: For sun, moon, or artificial light sources
+- CameraNode :: For viewpoints within the scene
+
+** 3. Scene Management
+
+A =class SceneNode= or it's subclass instance will handle the logical relationships between different nodes in our scene. For management of the scene we will implement =class SceneManager= that:
+- Maintains the root node of the scene graph
+- Handles scene loading/saving using our YAML configuration
+- Manages scene-wide resources and state
+- Performs optimizations like view frustum culling
+
+** 4. Integration with Current Codebase
+
+To integrate with rest of our application code, we should:
+- Extend the =Application= class to manage the scene graph
+- Update the rendering pipeline to traverse the scene graph
+- Ensure compatibility with our current terrain rendering
+
+** Implementation Strategy
+
+1. First, implement the core =SceneNode= class and basic traversal
+2. Add specialized nodes for terrain, water, etc
+3. Integrate with the existing rendering system
+4. Add support for loading/saving scene hierarchies via YAML
+5. Implement optimization techniques (culling, LOD)
+
+This approach will allow us to start capturing the hierarchical nature of landscapes we encounter during our travels, while building on the solid foundation we already have in the codebase.
+
+Rather than immediately implementing the full scene graph, we could start with a minimal implementation that supports our immediate needs for terrain visualization, then expand as we add new landscape features during our journey.

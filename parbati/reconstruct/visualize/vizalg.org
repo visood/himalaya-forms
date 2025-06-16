@@ -1,0 +1,117 @@
+#+STARTUP: overview
+#+STARTUP: logdrawer
+#+STARTUP: hideblocks
+
+#+PROPERTY: header-args: :eval never-export
+
+#+PROPERTY: header-args:jupyter :session ~/jupyter-run/active-local-py.json
+#+PROPERTY: header-args:jupyter: :exports both
+#+PROPERTY: header-args:jupyter: :cache yes
+#+PROPERTY: header-args:jupyter: :eval never-export
+
+#+PROPERTY: header-args:jupyter-python :session ~/jupyter-run/active-local-py.json
+#+PROPERTY: header-args:jupyter-python: :exports both
+#+PROPERTY: header-args:jupyter-python: :cache yes
+#+PROPERTY: header-args:jupyter-python: :eval never-export
+
+#+PROPERTY: header-args:jupyter-julia :session ~/jupyter-run/active-local-jl.json
+#+PROPERTY: header-args:jupyter-julia: :exports both
+#+PROPERTY: header-args:jupyter-julia: :cache yes
+#+PROPERTY: header-args:jupyter-julia: :eval never-export
+
+#+PROPERTY: header-args:bash: :exports code
+
+#+PROPERTY: header-args:elisp: :exports both
+
+#+PROPERTY: header-args:bibtex :exports none
+#+BIBLIOGRAPHY: "./refs.bib"
+#+BIBLIOGRAPHY: "../learn/refs.bib"
+#+PROPERTY: header-args:bibtex :tangle "./refs.bib"
+#+CITE_EXPORT: natbib
+
+
+#+LATEX_CLASS: article
+#+LATEX_CLASS_OPTIONS: [a4paper,12pt]
+#+LATEX_HEADER: \usepackage[utf8]{inputenc}
+#+LATEX_HEADER: \usepackage{booktabs} % for much better looking tables
+#+LATEX_HEADER: \usepackage{g\usepackage{babel}
+#+LATEX_HEADER: \usepackage{babel}
+#+LATEX_HEADER: \usepackage[up,bf,raggedright]{titlesec}
+#+LATEX_HEADER: \usepackage{paralist} % flexible & customisable lists (enumerate/itemize, etc.)
+#+LATEX_HEADER: \usepackage{subfig} % make it possible to include more than one captioned figure/table in a single float
+#+LATEX_HEADER: \usepackage[labelfont=bf,font=small]{caption}
+#+LATEX_HEADER: \usepackage[hidelinks]{hyperref}% for adding urls
+#+LATEX_HEADER: \usepackage{sectsty}
+#+LATEX_HEADER: \allsectionsfont{\sffamily\mdseries\upshape} % (See the fntguide.pdf for font help)
+#+LATEX_HEADER: \sectionfont{\bfseries\Large\raggedright}
+#+LATEX_HEADER: \usepackage[natbib=true]{biblatex} \DeclareFieldFormat{apacase}{#1} \addbibresource{~/org/resources/bibliography/refs.bib}
+#+LATEX_HEADER: \usepackage{parskip}
+#+LATEX_HEADER: \usepackage{amsmath}%To cleanly write equations and math text
+
+
+#+OPTIONS: <:nil c:nil todo:nil H:5
+
+Let us load the ~Python~ environment that we will need for our discussion,
+#+begin_src elisp
+(pyvenv-activate "~/.vmgr_repo/py310/")
+#+end_src
+
+#+RESULTS:
+
+Let us setup an interactive ~Python~ session where we can run the code developed here.
+#+begin_src jupyter
+print("Welcome to EMACS Jupyter")
+#+end_src
+
+
+#+title: Digital Forms for Himalaya
+#+subtitle: Visualization Algorithms
+
+* Preamble
+
+Nestled in the Western Himalaya, the Parvati valley emerges where the Pir Panjal and Great Himalayan ranges converge, Here the valley splits the Kullu mountains like a deep gash, its formation guided by tectonic faults where one mountain chain thrust over another and carved by millennia of glacial ice and rushing waters.  At dawn, when the first light catches the snow-draped peaks of Deo Tibba and Pin Parvati, the valley transforms into a natural amphitheater of light and shadow. The valley reveals its dramatic geologic heritage - where metamorphic gneisses of the Greater Himalayas meet the younger rocks of the Pir Panjal. The river below, named after the goddess Parvati, has carved its course along structural weaknesses, tumbling through narrow gorges and over worn boulders, its jade waters carrying both glacial silt and stories of the mountains' violent uplift.
+
+This landscape, where thermal springs burst from deep tectonic faults and cannabis grows wild on abandoned terraces, represents the complex interplay of geological forces, ecological adaptations, and human aspirations that characterizes the entire Himalayan range. Modern man must have set foot in the Himalaya before 10,000 years ago. Over the millennia they settled all habitable corners of Earth's tallest mountain ranges. The Himalaya suffered human presence, with deforestation turning the Tibetan plateau to a cold desert. However, human expansion was always limited by the extreme unpredictability of Himalayan weather and geology. Until we arrive in the modern age. Today, as motorable roads reach deep, hydroelectric projects dam the sacred waters and concrete structures replace traditional timber homes, the valley embodies a crucial question: how do we reconcile our need to experience, understand and document these mountains with our impact upon them?  Despite the sublime experiences they inspire in an individual, modern humanity's  /common-market-interest/ has been nothing but detrimental to the mountains.
+
+What does that mean if we travel through the mountains today? What shall we experience? What will inspire us? Computing biodiversity data, or climate data for the Himalaya will definitely be a good learning experience by itself. There must also be several unresolved scientific problems in Himalayan geology, hydrology, meteorology, climatology, or biology. They should be interesting to read and understand using computer models. However, these are /applications/ of scientific methods. I am more interested in elucidating the scientific methods themselves --- mostly to develop my own understanding. Our travels will provide us ample examples to create learning material in the form of computational notebooks, interactive webpages and info-graphics.
+
+I seek to capture not just the mechanics but the music of the mountains - from the crystalline patterns in their stones to the rhythmic cycles of their ecosystems. Through computational art and scientific modeling, I aim to express how life, from the smallest lichen to human settlements, is inseparable from the mountain geology, hydrology, and climate. I am interested in shapes and rhythms of both the natural and imagined worlds. I have studied computational models for the reconstruction and simulation of a mammalian brain. We can apply a similar approach to reconstruct and simulate a mountain ecosystem. The goal is not merely academic scientific development. Many such accounts exist in the literature. I want to also appreciate the sublime that Himalaya inspires in us. I want to develop a personal expression of her sheer beauty using computationally generated art. I want to capture the colorful patterns of it's stones, streams, and snows, and the rhythms of its flora and fauna. Using their stark example, I want to express, in code, and in art, how life is inseparable from air, land, and water. I want to show how biology responds to geological challenges. I want to show how human imagination responds to a towering geography. I want to show how mankind has become a mightier force than terrestrial geology. We will need modeling and data analyses --- but those are just numbers. We will also need art so that our audience can feel the beauty, what it could have been in the past, and what it would mean when it is lost.
+
+
+
+
+* Procedural generation of terrain
+
+Procedural generation is a method of creating data algorithmically rather than manually. For terrain we will deploy algorithms to generate realistic-looking landscapes without having to model evey mountain, valley, and feature by hand. It is a way to create complex, natural-looking worlds using relatively simple mathematical rules and randomization.
+An algorithmic definition allows us to create an infinite variation of content from a small set of inputs and parameters.
+
+We can use procedural generation allows us to create realistic representation at multiple scales. We can quickly generate variations to explore how different parameters affect terrain formation, helping us understand the geological processes we're observing. Procedural algorithms can fill in the gaps based on the patterns we observe elsewhere.
+
+Beyond scientific accuracy, procedural generation allows us to create artistic interpretations of the landscapes we encounter. We can model how landscapes might evolve over time or under different conditions. We can create interactive 3D environments based on the real places we visit, allowing others to virtually explore these locations.
+
+** Data structure for procedural terrains
+
+We typically need,
+- Height maps :: A 2D grid of array where each cell stores the elevation at that point.
+- Mesh data :: Vertices, normals, and indices that convert the height map into a 3D model that can be rendered.
+- Noise functions :: Essential for generating natural-looking randomness.
+- Region maps :: Used to define different biomes or terrain types (forests, mountains, plains)
+- Parameter structures :: Configurable parameters used by the different algorithms
+
+** Enhanced procedural generation using real-world data
+- Satellite elevation data :: SRTM (Shuttle Radar Topography Mission) or ASTER GDEM provide real-world elevation data.
+- GIS Datasets :: Geographic Information Systems contain comprehensive data about features, vegetations, and human settlements.
+- Weather and erosion models :: Real climate data can inform how erosion shapes procedural terrain.
+- Geological maps :: Understand the underlying rock types to inform realstic terrain formation
+- Photogrammetry :: Use photographs to create 3D models that influence procedural generation
+
+** Common algorithms
+- Perline and simplex noise :: Create smooth, natural-looking randomness with controllable frequency and amplitude.
+- Fractal Brownian motion (fBm) :: Layering noise at different frequencies to create detail at multiple scales.
+- Voronoi diagrams :: Create cellular-looking patterns useful for creating distinct regions or features.
+- Hydraulic erosion simulation :: Simulate water flow to erode terrain realistically.
+- Thermal erosion :: Simulates the effects of temperature changes on terrain.
+- L-Systems :: Generate river networks and other branching structures.
+- Tectonic plate simulation :: Models mountain formation from colliding plates.
+
+** The Diamond-Square algorithm
