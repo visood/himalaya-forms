@@ -352,7 +352,6 @@ Each title tries to balance:
 - The journey/exploration component
 - Artistic/aesthetic dimensions
 
-
 ** Withering Heights
 Let us start with a few evocative phrases about the mighty mountains Himalaya,
 Ancient Sanskrit:
@@ -504,8 +503,6 @@ The title could also guide our documentation structure:
 It's poetic while being scientifically grounded - a perfect frame for our journey.
 
 *<<<<<<*
-
-
 
 
 ** A "Pattern Song" for Himalaya

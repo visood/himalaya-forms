@@ -15,9 +15,9 @@
 #+PROPERTY: header-args:jupyter-python: :eval no-export
 
 #+PROPERTY: header-args:jupyter-hy :session ~/jupyter-run/active-local-hy.json
-#+PROPERTY: header-args:jupyter: :exports both
-#+PROPERTY: header-args:jupyter: :cache yes
-#+PROPERTY: header-args:jupyter: :eval no-export
+#+PROPERTY: header-args:jupyter-hy: :exports both
+#+PROPERTY: header-args:jupyter-hy: :cache yes
+#+PROPERTY: header-args:jupyter-hy: :eval no-export
 
 #+PROPERTY: header-args:bash: :exports code
 

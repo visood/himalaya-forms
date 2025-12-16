@@ -1,3 +1,7 @@
+#+STARTUP: overview
+#+STARTUP: hideblocks
+#+STARTUP: hidedrawers
+
 #+title: Reconstructing a Landscape
 
 To reconstruct a landscape we will begin by developing a minimal data structure. A real landscape will map to a polygon on Earth's surface, and specified by vertices represented as /latitude, longitude, and altitude/.  Our task will be to create a statistical instance that assembles all the individual elements that together compose a landscape. These elements will be drawn from the known measurements of the area's geology (rock-system), hydrology (water-system), ecology (vegetation & animal systems), and metreology (weather-system). We will reconstruct Himalayan landscapes as they have evolved over their history. To contrast pristine landscapes to how they look now, we will need human data and models of human settlements.

@@ -53,7 +53,7 @@
 
 Let us load the ~Python~ environment that we will need for our discussion,
 #+begin_src elisp
-(pyvenv-activate "~/.vmgr_repo/py310/")
+(pyvenv-activate "~/.vmgr_repo/deep-learning-py312/")
 #+end_src
 
 #+RESULTS:
@@ -62,6 +62,9 @@ Let us setup an interactive ~Python~ session where we can run the code developed
 #+begin_src jupyter
 print("Welcome to EMACS Jupyter")
 #+end_src
+
+#+RESULTS:
+: Welcome to EMACS Jupyter
 
 
 

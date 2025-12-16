@@ -1,3 +1,7 @@
+#+STARTUP: overview
+#+STARTUP: hideblocks
+#+STARTUP: hidedrawers
+
 #+title: Himalayan Landscapes
 #+subtitle: Observation and Reconstruction
 

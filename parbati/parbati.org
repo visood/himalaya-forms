@@ -1,3 +1,7 @@
+#+STARTUP: overview
+#+STARTUP: hideblocks
+#+STARTUP: hidedrawers
+
 #+title: PARBATI
 #+subtitle: Programs and Arts for Recording the Beauty of Apline Terrain's Impressions
 
